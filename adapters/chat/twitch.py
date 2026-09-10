@@ -11,7 +11,7 @@ class TwitchChat:
     # Настройки подключения
     HOST = "irc.chat.twitch.tv"
     PORT = 6697
-    CHAN = "#vedal987"  # Имя канала строчными буквами с решеткой (например, #xqc)
+    CHAN = "#nuke73"  # Имя канала строчными буквами с решеткой (например, #xqc)
     NICK = "justinfan84732"   # Анонимный ник
     PASSWORD = "SCHMOOPIIE"       # Заглушка пароля
 
@@ -72,6 +72,7 @@ class TwitchChat:
 
         print(f"Успешно подключились к чату {self.chan}. Ожидание сообщений...")
 
+        secure_sock.settimeout(1.0)
 
         buffer = ""
         while self._running:
@@ -102,6 +103,15 @@ class TwitchChat:
                 print("\nОтключение от чата...")
                 secure_sock.close()
                 break
+
+            except socket.timeout:
+                # Таймаут — просто проверяем _running и продолжаем
+                continue
+            except Exception as e:
+                print(f"Ошибка: {e}")
+                break
+
+        secure_sock.close()
 
 
 # Использование

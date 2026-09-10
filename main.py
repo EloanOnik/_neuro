@@ -1,52 +1,45 @@
-#Соединить llm + tts
-import pyttsx3
-import requests
-from core.context import ChatContext
+# main.py
+from pathlib import Path
 
-engine = pyttsx3.init()
-
-# Настройка голоса, необязательность
-voices = engine.getProperty('voices')
-
-if isinstance(voices, list):
-    for voice in voices:
-        # На случий None
-        languages = voice.languages if voice.languages else []
-
-        if isinstance(languages, str):
-            if 'ru' in languages.lower():
-                engine.setProperty('voice', voice.id)
-                break
-
-        if isinstance(languages, list):
-            for lang in languages:
-                if 'ru' in lang.lower():
-                    engine.setProperty('voice', voice.id)
-                    break
+from core.llm import LLMClient
+from core.tts import TextToSpeech
 
 
-# Загружаем модель в память
-response = requests.post(
-    "http://localhost:11434/api/chat",
-    json={
-        "model": "qwen2.5:3b",
-        "messages": [{'role': 'user', 'content': 'Привет!'}],  # Пустой промпт просто загрузит модель
-        "stream": False,
-        "keep_alive": '5m', # Держать в памяти бесконечно (-1)
-    }
-)
+BASE_DIR = Path(__file__).parent
 
-print(f"Статус: {response.status_code}")
 
-if response.status_code == 200:
-    data = response.json()
-    print(data)
-    text_response = data['message']['content']
+def main():
+    # Инициализация
+    llm = LLMClient(model="qwen2.5:3b")
+    tts = TextToSpeech(
+        model_path=BASE_DIR / "tts_models" / "ru_RU-irina-medium.onnx",
+        output_dir=BASE_DIR / "output",
+    )
 
-    print(f"Ответ: {text_response}")
+    # Прогрев LLM
+    if not llm.load_model():
+        print("Не удалось загрузить модель LLM")
+        return
+    print("LLM: модель загружена")
 
-    # озвучиваем текст
-    engine.say(text_response)
-    engine.runAndWait()
-else:
-    print(f"Ошибка: {response.text}")
+    print("Введите текст (Ctrl+C для выхода):")
+
+    try:
+        while True:
+            user_input = input("> ")
+            if not user_input.strip():
+                continue
+
+            answer = llm.ask(user_input)
+            if not answer:
+                continue
+
+            print(f"🤖: {answer}")
+            tts.speak(answer)
+
+    except KeyboardInterrupt:
+        print("\nЗавершение работы...")
+
+
+if __name__ == "__main__":
+    main()
