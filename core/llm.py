@@ -36,6 +36,20 @@ class LLMClient:
             print(f"LLM: ошибка загрузки модели: {e}")
             return False
 
+    def stop(self) -> None:
+        try:
+            requests.post(
+                self.url,
+                json={
+                    "model": self.model,
+                    "keep_alive": "0m",
+                },
+                timeout=self.timeout,
+            )
+        except requests.RequestException as e:
+            print(f"Объект LLMClient не смог вызвать метод stop (не получилось выключить llm и убрать из памяти) {e}")
+
+
     def ask(self, prompt: str) -> Optional[str]:
         """Отправляет запрос и возвращает текст ответа."""
         try:

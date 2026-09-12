@@ -1,5 +1,7 @@
 # main.py
 from pathlib import Path
+from adapters.chat.twitch import TwitchChat
+import queue
 
 from core.llm import LLMClient
 from core.tts import TextToSpeech
