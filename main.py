@@ -1,21 +1,20 @@
 # main.py
+import asyncio
 from pathlib import Path
-from adapters.chat.twitch import TwitchChat
-import queue
 
 from core.llm import LLMClient
 from core.tts import TextToSpeech
 
-
 BASE_DIR = Path(__file__).parent
 
 
-def main():
+async def main():
     # Инициализация
     llm = LLMClient(model="qwen2.5:3b")
     tts = TextToSpeech(
-        model_path=BASE_DIR / "tts_models" / "ru_RU-irina-medium.onnx",
-        output_dir=BASE_DIR / "output",
+        model_path=BASE_DIR / "tts_models" / "kokoro-v1.0.onnx",
+        voices_path=BASE_DIR / "tts_models" / "voices-v1.0.bin",
+        #output_dir=BASE_DIR / "output",
     )
 
     # Прогрев LLM
@@ -36,12 +35,12 @@ def main():
             if not answer:
                 continue
 
-            print(f"🤖: {answer}")
-            tts.speak(answer)
+            print(f": {answer}")
+            await tts.speak(answer)
 
     except KeyboardInterrupt:
         print("\nЗавершение работы...")
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

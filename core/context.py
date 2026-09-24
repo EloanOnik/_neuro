@@ -1,5 +1,6 @@
 from collections import deque
 
+
 class ChatContext:
     """Контекст из 10 последних сообщений"""
     def __init__(self, max_messages=10):

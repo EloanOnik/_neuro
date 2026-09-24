@@ -1,9 +1,8 @@
+import queue
+import re
 import socket
 import ssl
-import re
 import threading
-import queue
-from typing import Optional
 
 """Блокировка потока, переписать на асинхронность no gil"""
 
@@ -11,7 +10,7 @@ class TwitchChat:
     # Настройки подключения
     HOST = "irc.chat.twitch.tv"
     PORT = 6697
-    CHAN = "#nuke73"  # Имя канала строчными буквами с решеткой (например, #xqc)
+    CHAN = "#TianKami"  # Имя канала строчными буквами с решеткой (например, #xqc)
     NICK = "justinfan84732"   # Анонимный ник
     PASSWORD = "SCHMOOPIIE"       # Заглушка пароля
 
@@ -35,7 +34,7 @@ class TwitchChat:
         self.chan = chan if chan.startswith('#') else f'#{chan}'
         self.nick = nick
         self.password = password
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self.message_queue = queue.Queue()
         self._running = True
 
@@ -104,11 +103,13 @@ class TwitchChat:
                 secure_sock.close()
                 break
 
-            except socket.timeout:
+            except TimeoutError:
                 # Таймаут — просто проверяем _running и продолжаем
                 continue
             except Exception as e:
-                print(f"Ошибка: {e}")
+                print(f"Ошибка: {type(e).__name__}: {e}")
+                import traceback
+                traceback.print_exc()
                 break
 
         secure_sock.close()

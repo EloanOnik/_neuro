@@ -1,7 +1,9 @@
 # core/llm.py
-import requests
-from typing import Optional
+import logging
 
+import httpx
+
+logger = logging.getLogger(__name__)
 
 class LLMClient:
     """Клиент для общения с Ollama."""
@@ -17,11 +19,23 @@ class LLMClient:
         self.url = url
         self.timeout = timeout
         self.keep_alive = keep_alive
+        self._client: httpx.AsyncClient | None = None
 
-    def load_model(self) -> bool:
+    def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None:
+            self._client = httpx.AsyncClient(timeout=self.timeout)
+        return self._client
+
+    async def close(self) -> None:
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
+
+    async def load_model(self) -> bool:
         """Прогревает модель в память (пустой запрос)."""
+        client = await self._get_client()
         try:
-            response = requests.post(
+            response = await client.post(
                 self.url,
                 json={
                     "model": self.model,
@@ -29,31 +43,43 @@ class LLMClient:
                     "stream": False,
                     "keep_alive": self.keep_alive,
                 },
-                timeout=self.timeout,
             )
             return response.status_code == 200
-        except requests.RequestException as e:
+        except httpx.RequestError as e:
+            logger.error("LLM: ошибка загрузки модели: %s", e)
             print(f"LLM: ошибка загрузки модели: {e}")
             return False
 
-    def stop(self) -> None:
+    async def stop(self):
+        client = await self._get_client()
         try:
-            requests.post(
+            response = await client.post(
                 self.url,
                 json={
                     "model": self.model,
                     "keep_alive": "0m",
                 },
-                timeout=self.timeout,
             )
-        except requests.RequestException as e:
+            if response.status_code >=400:
+                logger.error(
+                    "LLM stop вернул статус %s: %s",
+                    response.status_code, response.text,
+                )
+                print(f"LLM stop вернул статус {response.status_code}: {response.text}")
+                return False
+            return True
+
+        except httpx.RequestError as e:
+            logger.error("LLMClient.stop: не удалось выгрузить модель: %s", e)
             print(f"Объект LLMClient не смог вызвать метод stop (не получилось выключить llm и убрать из памяти) {e}")
+            return False
 
 
-    def ask(self, prompt: str) -> Optional[str]:
+    async def ask(self, prompt: str) -> str | None:
         """Отправляет запрос и возвращает текст ответа."""
+        client = self._get_client()
         try:
-            response = requests.post(
+            response = await client.post(
                 self.url,
                 json={
                     "model": self.model,
@@ -61,16 +87,17 @@ class LLMClient:
                     "stream": False,
                     "keep_alive": self.keep_alive,
                 },
-                timeout=self.timeout,
             )
 
             if response.status_code != 200:
+                logger.error("LLM: ошибка %s: %s", response.status_code, response.text)
                 print(f"LLM: ошибка {response.status_code}: {response.text}")
                 return None
 
             data = response.json()
             return data.get("message", {}).get("content", "")
 
-        except requests.RequestException as e:
+        except httpx.RequestError as e:
+            logger.error("LLM: ошибка запроса: %s", e)
             print(f"LLM: ошибка запроса: {e}")
             return None

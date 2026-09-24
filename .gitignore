@@ -1,0 +1,26 @@
+@"
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.venv/
+
+# Модели и бинарники
+tts_models/
+output/
+*.onnx
+*.bin
+*.pt
+*.pth
+*.safetensors
+*.gguf
+*.wav
+
+# IDE
+.vscode/
+.idea/
+
+# Env
+.env
+"@ | Out-File -Encoding utf8 .gitignore
