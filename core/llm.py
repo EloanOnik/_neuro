@@ -63,15 +63,24 @@ class LLMClient:
 
     async def stop(self):
         client = await self._get_client() #Возможно гонка
+        url = self.url.replace("/api/chat", "/api/generate")
         try:
             response = await client.post(
                 self.url,
                 json={
                     "model": self.model,
-                    "keep_alive": "0m",
+                    "keep_alive": 0,
                 },
+                timeout=10.0,
             )
             if response.status_code >=400:
+                logger.error(
+                    "LLM stop вернул статус %s: %s",
+                    response.status_code, response.text,
+                )
+                print(f"LLM stop вернул статус {response.status_code}: {response.text}")
+                return False
+            if response.status_code < 400:
                 logger.error(
                     "LLM stop вернул статус %s: %s",
                     response.status_code, response.text,

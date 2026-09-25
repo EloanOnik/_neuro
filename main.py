@@ -41,6 +41,13 @@ async def main():
     except KeyboardInterrupt:
         print("\nЗавершение работы...")
 
+    finally:
+        print("\nЗавершение работы...")
+        await llm.stop()      # ← выгрузить модель
+        await llm.close()     # ← закрыть httpx-клиент
+        if hasattr(tts, "close"):
+            await tts.close()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
