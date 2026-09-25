@@ -21,7 +21,12 @@ class LLMClient:
         self.keep_alive = keep_alive
         self._client: httpx.AsyncClient | None = None
 
-    def _get_client(self) -> httpx.AsyncClient:
+    """Ленивая инициализация.
+    Клиент создаётся только при первом обращении.
+    Переиспользование соединений (connection pooling).
+    код не защищён от гонок. Если два корутины одновременно вызовут _get_client() до создания клиента, может создаться два клиента.
+    Обычно решается через asyncio.Lock."""
+    async def _get_client(self) -> httpx.AsyncClient:
         if self._client is None:
             self._client = httpx.AsyncClient(timeout=self.timeout)
         return self._client
@@ -33,7 +38,8 @@ class LLMClient:
 
     async def load_model(self) -> bool:
         """Прогревает модель в память (пустой запрос)."""
-        client = await self._get_client()
+        client = await self._get_client() #Возможно гонка
+        print("await self._get_client() в load_model прошел")
         try:
             response = await client.post(
                 self.url,
@@ -44,14 +50,19 @@ class LLMClient:
                     "keep_alive": self.keep_alive,
                 },
             )
+            print(f"DEBUG load_model: status={response.status_code}")
+            print(f"DEBUG load_model: body={response.text[:500]}")
             return response.status_code == 200
-        except httpx.RequestError as e:
-            logger.error("LLM: ошибка загрузки модели: %s", e)
-            print(f"LLM: ошибка загрузки модели: {e}")
+        #except httpx.RequestError as e:
+         #   logger.error("LLM: ошибка загрузки модели: %s", e)
+        #    print(f"LLM: ошибка загрузки модели: {e}")
+       #     return False
+        except Exception as e:
+            print(f"DEBUG load_model: {type(e).__name__}: {e}")
             return False
 
     async def stop(self):
-        client = await self._get_client()
+        client = await self._get_client() #Возможно гонка
         try:
             response = await client.post(
                 self.url,
@@ -77,7 +88,7 @@ class LLMClient:
 
     async def ask(self, prompt: str) -> str | None:
         """Отправляет запрос и возвращает текст ответа."""
-        client = self._get_client()
+        client = await self._get_client()
         try:
             response = await client.post(
                 self.url,

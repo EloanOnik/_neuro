@@ -18,7 +18,7 @@ async def main():
     )
 
     # Прогрев LLM
-    if not llm.load_model():
+    if not await llm.load_model():
         print("Не удалось загрузить модель LLM")
         return
     print("LLM: модель загружена")
@@ -27,11 +27,11 @@ async def main():
 
     try:
         while True:
-            user_input = input("> ")
+            user_input = await asyncio.to_thread(input, "> ")
             if not user_input.strip():
                 continue
 
-            answer = llm.ask(user_input)
+            answer = await llm.ask(user_input)
             if not answer:
                 continue
 
