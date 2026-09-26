@@ -45,6 +45,8 @@ class Brain:
         if self.llm_client:
             await self.llm_client.stop()
             await self.llm_client.close()
+        if self.tts_player:
+            await self.tts_player.stop()
         print("Brain: остановлен")
         
 
@@ -66,18 +68,31 @@ class Brain:
                 item = await self.queue.get()
                 try:
                     await self._handle_item(item)
-                except Exception:
-                    print("")
+                except Exception as e:
+                    print("", {e})
                 finally:
                     self.queue.task_done()
             except asyncio.CancelledError:
                 print("Brain: _process_queue CancelledError")
                 break
 
-    async def _handle_item(item): # использует другие подметоды 
+    async def _handle_item(self, item): # использует другие подметоды
+        """Оркестратор Brain: промпт → LLM → TTS → контекст."""
+        prompt = self._build_prompt(item) # создать промпт 
+        tokens = self._stream_llm(prompt) # просто вывод от ollama
+        answer = await self._flush_tts_buffer(tokens) # собирает предложения из токенов -> озвучивает -> выдает полный ответ llm для input context
+        self.chat_context.add_user_message(item["text"]) # добавляет наш запрос в context
+        self.chat_context.add_assistant_message(answer) # добавляет ответ LLM в контекст
 
-    async def _build_prompt(item):# создает промпт, контекст + то что пришло из чата
 
-    async def _stream_llm(prompt): # отправляет элемент из очереди в llm 
 
-    async def _flush_tts_buffer(tokens):# получает ответ llm из очереди его ответов 
+    def _build_prompt(self, item):# создает промпт, контекст + то что пришло из чата
+        """system_prompt + context + thisprompt"""
+
+
+    async def _stream_llm(self, prompt): # отправляет элемент из очереди в llm 
+        """output llm (ollama) tokens"""
+
+
+    async def _flush_tts_buffer_and_return_output(self, tokens):# получает ответ llm из очереди его ответов
+        """join tokens in sentence + speak + full ollama output"""
