@@ -52,7 +52,7 @@ class TextToSpeech:
         self,
         model_path: str | Path,
         voices_path: str | Path,
-        device_index: int = 17,
+        device_index: int = 13, #<-- исправить на автопоиск
         target_sr: int = 48000,
         target_ch: int = 2,
         voice: str = "af_heart",

@@ -27,8 +27,10 @@ class LLMClient:
     код не защищён от гонок. Если два корутины одновременно вызовут _get_client() до создания клиента, может создаться два клиента.
     Обычно решается через asyncio.Lock."""
     async def _get_client(self) -> httpx.AsyncClient:
+        print("Попытка выполнить _get_client (llm).")
         if self._client is None:
             self._client = httpx.AsyncClient(timeout=self.timeout)
+        print("Успешно выполнили _get_client (llm), вернули _client")
         return self._client
 
     async def close(self) -> None:
@@ -39,7 +41,7 @@ class LLMClient:
     async def load_model(self) -> bool:
         """Прогревает модель в память (пустой запрос)."""
         client = await self._get_client() #Возможно гонка
-        print("await self._get_client() в load_model прошел")
+        print("await self._get_client() в load_model прошел (llm).")
         try:
             response = await client.post(
                 self.url,
@@ -74,13 +76,6 @@ class LLMClient:
                 timeout=10.0,
             )
             if response.status_code >=400:
-                logger.error(
-                    "LLM stop вернул статус %s: %s",
-                    response.status_code, response.text,
-                )
-                print(f"LLM stop вернул статус {response.status_code}: {response.text}")
-                return False
-            if response.status_code < 400:
                 logger.error(
                     "LLM stop вернул статус %s: %s",
                     response.status_code, response.text,

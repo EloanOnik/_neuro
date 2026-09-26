@@ -1,5 +1,4 @@
 import asyncio
-import edge_tts
 from pathlib import Path
 from datetime import datetime
 
