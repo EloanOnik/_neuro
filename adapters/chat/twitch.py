@@ -41,6 +41,7 @@ class TwitchChat:
 
     def start(self):
         """Запуск чата в отдельном потоке"""
+        #self._running = True
         self._thread = threading.Thread(
             target=self.connect_to_twitch,
             daemon=True,
@@ -103,6 +104,7 @@ class TwitchChat:
                 secure_sock.close()
                 break
 
+            #except (socket.timeout, TimeoutError):
             except TimeoutError:
                 # Таймаут — просто проверяем _running и продолжаем
                 continue
