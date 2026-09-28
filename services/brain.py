@@ -8,14 +8,14 @@ from core.llm import LLMClient
 from core.context import ChatContext
 from services.tts_player import TTSPlayer
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+_BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class Brain:
     def __init__(
         self,
         model: str = "qwen2.5:3b",
-        path_system_prompt: str | Path = BASE_DIR / "system" / "system.yaml",
+        path_system_prompt: str | Path = _BASE_DIR / "system" / "system.yaml",
     ):
         self.model = model
         self.queue: asyncio.Queue | None = None
@@ -23,7 +23,6 @@ class Brain:
         self.chat_context = ChatContext()
         self.tts_player = TTSPlayer()
         self._task = None
-
         self.path_system_prompt = Path(path_system_prompt)
         self.system_prompt = self._load_system_prompt()
 
@@ -36,7 +35,7 @@ class Brain:
             raise ValueError(
                 f"system_prompt пустой или отсутствует: {self.path_system_prompt}"
             )
-        return promp
+        return prompt
 
     async def start(self):
         print("Попытка выполнить start (brain)")
@@ -98,7 +97,7 @@ class Brain:
     async def _handle_item(self, item): # использует другие подметоды
         """Оркестратор Brain: промпт → LLM → TTS → контекст."""
         prompt = self._build_prompt(item) # создать промпт 
-        tokens = self._stream_llm(prompt) # просто вывод от ollama
+        tokens = self._stream_llm(prompt) # просто вывод от ollama может стоит добавить await
         answer = await self._flush_tts_buffer(tokens) # собирает предложения из токенов -> озвучивает -> выдает полный ответ llm для input context
         self.chat_context.add_user_message(item["text"]) # добавляет наш запрос в context
         self.chat_context.add_assistant_message(answer) # добавляет ответ LLM в контекст
@@ -107,7 +106,11 @@ class Brain:
 
     def _build_prompt(self, item):# создает промпт, контекст + то что пришло из чата
         """system prompt + context + this prompt"""
-
+        messages = []
+        messages.append({"role": "system", "content": self.system_prompt})
+        messages.extend(self.chat_context.get_all())
+        messages.append(("role": "user", "content": item["text"]))
+        return messages
 
 
     async def _stream_llm(self, prompt): # отправляет элемент из очереди в llm 
