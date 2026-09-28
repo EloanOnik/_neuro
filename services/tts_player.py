@@ -2,7 +2,7 @@ import asyncio
 from pathlib import Path
 from datetime import datetime
 
-#Принимает текст с приоритетом, играет его через Edge-TTS в VB-Cable, не блокируя вызывающий код
+#Принимает текст с приоритетом, играет его через TTS в VB-Cable, не блокируя вызывающий код
 
 class TTSPlayer:
     def __init__(

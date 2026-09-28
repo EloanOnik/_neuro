@@ -1,16 +1,21 @@
 # services/brain.py
 import asyncio
 import time
+import yaml
+from pathlib import Path
 
 from core.llm import LLMClient
 from core.context import ChatContext
 from services.tts_player import TTSPlayer
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+
 
 class Brain:
     def __init__(
         self,
-        model: str = "qwen2.5:3b"
+        model: str = "qwen2.5:3b",
+        path_system_prompt: str | Path = BASE_DIR / "system" / "system.yaml",
     ):
         self.model = model
         self.queue: asyncio.Queue | None = None
@@ -18,6 +23,20 @@ class Brain:
         self.chat_context = ChatContext()
         self.tts_player = TTSPlayer()
         self._task = None
+
+        self.path_system_prompt = Path(path_system_prompt)
+        self.system_prompt = self._load_system_prompt()
+
+    def _load_system_prompt(self) -> str:
+        with self.path_system_prompt.open(encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+
+        prompt = (data.get("system_prompt") or "").strip()
+        if not prompt:
+            raise ValueError(
+                f"system_prompt пустой или отсутствует: {self.path_system_prompt}"
+            )
+        return promp
 
     async def start(self):
         print("Попытка выполнить start (brain)")
@@ -87,7 +106,8 @@ class Brain:
 
 
     def _build_prompt(self, item):# создает промпт, контекст + то что пришло из чата
-        """system_prompt + context + thisprompt"""
+        """system prompt + context + this prompt"""
+
 
 
     async def _stream_llm(self, prompt): # отправляет элемент из очереди в llm 
