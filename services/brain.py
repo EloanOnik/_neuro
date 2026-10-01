@@ -109,13 +109,33 @@ class Brain:
         messages = []
         messages.append({"role": "system", "content": self.system_prompt})
         messages.extend(self.chat_context.get_all())
-        messages.append(("role": "user", "content": item["text"]))
+        messages.append({"role": "user", "content": item["text"]})
         return messages
 
 
-    async def _stream_llm(self, prompt): # отправляет элемент из очереди в llm 
+    async def _stream_llm(self, prompt): # отправляет элемент из очереди в llm # подумать на счет async, yield
         """output llm (ollama) tokens"""
+        self.llm_client.ask(prompt)
+        return #добавить
 
 
-    async def _flush_tts_buffer_and_return_output(self, tokens):# получает ответ llm из очереди его ответов
+    async def _flush_tts_buffer(self, tokens_async_iterator):# получает ответ llm из очереди его ответов
         """join tokens in sentence + speak + full ollama output"""
+        #создать буфер для накопления токенов
+        #передавать накопленные токены из буфера в tts при накоплении полного предложения
+        #накапливать полный ответ LLM для дальнейшой записи в контекстное окно и предачи дальше
+        buffer = ""
+        full_response = ""
+
+        async for token in tokens_async_iterator:
+            buffer += token
+            full_response += token
+            if buffer.endswith(('.', '!', '?')):
+                self.tts_player.speak(buffer)
+                buffer = ""
+
+        if len(buffer) != 0:
+            self.tts_player.speak(buffer)
+            buffer = ""
+
+        return full_response

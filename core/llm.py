@@ -20,27 +20,40 @@ class LLMClient:
         self.timeout = timeout
         self.keep_alive = keep_alive
         self._client: httpx.AsyncClient | None = None
+        self._stream_client: httpx.AsyncClient | None = None
 
     """Ленивая инициализация.
     Клиент создаётся только при первом обращении.
     Переиспользование соединений (connection pooling).
     код не защищён от гонок. Если два корутины одновременно вызовут _get_client() до создания клиента, может создаться два клиента.
     Обычно решается через asyncio.Lock."""
-    async def _get_client(self) -> httpx.AsyncClient:
+    def _get_client(self) -> httpx.AsyncClient:
         print("Попытка выполнить _get_client (llm).")
         if self._client is None:
             self._client = httpx.AsyncClient(timeout=self.timeout)
         print("Успешно выполнили _get_client (llm), вернули _client")
         return self._client
 
-    async def close(self) -> None:
+    def _get_stream_client(self) -> httpx.AsyncClient:
+        print ("LLM: method _get_stream_client: Попытка выполнить.")
+        if self._stream_client is None:
+            self._stream_client = httpx.AsyncClient(timeout=self.timeout)
+        print("LLM: method _get_stream_client: Успешно выполнили _get_stream_client")
+        return self._stream_client
+
+    async def close_client(self) -> None:
         if self._client is not None:
             await self._client.aclose()
             self._client = None
 
+    async def close_stream_client(self) -> None:
+        if self._stream_client is not None:
+            await self._stream_client.aclose()
+            self._stream_client = None
+
     async def load_model(self) -> bool:
         """Прогревает модель в память (пустой запрос)."""
-        client = await self._get_client() #Возможно гонка
+        client = self._get_client() #Возможно гонка
         print("await self._get_client() в load_model прошел (llm).")
         try:
             response = await client.post(
@@ -64,7 +77,7 @@ class LLMClient:
             return False
 
     async def stop(self):
-        client = await self._get_client() #Возможно гонка
+        client = self._get_client() #Возможно гонка
         url = self.url.replace("/api/chat", "/api/generate")
         try:
             response = await client.post(
@@ -92,7 +105,7 @@ class LLMClient:
 
     async def ask(self, prompt: str) -> str | None:
         """Отправляет запрос и возвращает текст ответа."""
-        client = await self._get_client()
+        client = self._get_client()
         try:
             response = await client.post(
                 self.url,
@@ -115,4 +128,31 @@ class LLMClient:
         except httpx.RequestError as e:
             logger.error("LLM: ошибка запроса: %s", e)
             print(f"LLM: ошибка запроса: {e}")
+            return None
+
+    async def stream_ask(self, prompt: str):
+        """Отправляет запрос и возвращает токены ответа."""
+        client = self._get_client()
+        try:
+            response = await client.post(
+                self.url,
+                json={
+                    "model": self.model,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "stream": True,
+                    "keep_alive": self.keep_alive,
+                },
+            )
+
+            if response.status_code != 200:
+                logger.error("LLMClient: method stream_ask: LLM ошибка %s, %s", response.status_code, response.text)
+                print(f"LLMClient: method stream_ask: LLM ошибка {response.status_code}, {response.text}")
+                return None
+
+            data = response.json()
+            return data.get("message", {}).get("content"), data.get("done") # кортеж 
+
+        except httpx.RequestError as e:
+            logger.error("LLMClient: method stream_ask: LLM ошибка запроса %s", e)
+            print(f"LLMClient: method stream_ask: LLM ошибка запроса {e}")
             return None
