@@ -1,5 +1,6 @@
 # core/llm.py
 import logging
+import json
 
 import httpx
 
@@ -81,7 +82,7 @@ class LLMClient:
         url = self.url.replace("/api/chat", "/api/generate")
         try:
             response = await client.post(
-                self.url,
+                url = url,
                 json={
                     "model": self.model,
                     "keep_alive": 0,
@@ -130,29 +131,25 @@ class LLMClient:
             print(f"LLM: ошибка запроса: {e}")
             return None
 
-    async def stream_ask(self, prompt: str):
+    async def stream_ask_generator(self, message: list):
         """Отправляет запрос и возвращает токены ответа."""
-        client = self._get_client()
-        try:
-            response = await client.post(
-                self.url,
-                json={
-                    "model": self.model,
-                    "messages": [{"role": "user", "content": prompt}],
-                    "stream": True,
-                    "keep_alive": self.keep_alive,
-                },
-            )
+        client = self._get_stream_client()
 
-            if response.status_code != 200:
-                logger.error("LLMClient: method stream_ask: LLM ошибка %s, %s", response.status_code, response.text)
-                print(f"LLMClient: method stream_ask: LLM ошибка {response.status_code}, {response.text}")
-                return None
-
-            data = response.json()
-            return data.get("message", {}).get("content"), data.get("done") # кортеж 
-
-        except httpx.RequestError as e:
-            logger.error("LLMClient: method stream_ask: LLM ошибка запроса %s", e)
-            print(f"LLMClient: method stream_ask: LLM ошибка запроса {e}")
-            return None
+        # Открываем контекстный менеджер стрима
+        async with client.stream("POST",
+                                self.url,
+                                json = {
+                                    "model": self.model,
+                                    "messages": message,
+                                    "stream": True,
+                                    "keep_alive": self.keep_alive,
+                                },
+                                ) as response:
+            response.raise_for_status()
+            # Потоковая передача чанков (lines) наружу через yield
+            async for line in response.aiter_lines():
+                chunk = json.loads(line)
+                if chunk.get("done") is True: return
+                token = chunk.get("message", {}).get("content", "")
+                if token != "":
+                    yield token
