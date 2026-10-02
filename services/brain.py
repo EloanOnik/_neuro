@@ -62,7 +62,8 @@ class Brain:
             self._task = None
         if self.llm_client:
             await self.llm_client.stop()
-            await self.llm_client.close()
+            await self.llm_client.close_client()
+            await self.llm_client.close_stream_client()
         if self.tts_player:
             await self.tts_player.stop()
         print("Brain: остановлен")
@@ -87,11 +88,11 @@ class Brain:
                 try:
                     await self._handle_item(item)
                 except Exception as e:
-                    print("", {e})
+                    print(f"{type(e).__name__}: {e}")
                 finally:
                     self.queue.task_done()
             except asyncio.CancelledError:
-                print("Brain: _process_queue CancelledError")
+                print("Brain: method _process_queue: except CancelledError")
                 break
 
     async def _handle_item(self, item): # использует другие подметоды
@@ -116,7 +117,7 @@ class Brain:
     async def _stream_llm(self, prompt): # отправляет элемент из очереди в llm # подумать на счет async, yield
         """output llm (ollama) tokens"""
         self.llm_client.ask(prompt)
-        return #добавить
+        
 
 
     async def _flush_tts_buffer(self, tokens_async_iterator):# получает ответ llm из очереди его ответов

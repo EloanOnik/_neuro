@@ -82,7 +82,7 @@ class LLMClient:
         url = self.url.replace("/api/chat", "/api/generate")
         try:
             response = await client.post(
-                url = url,
+                url,
                 json={
                     "model": self.model,
                     "keep_alive": 0,
@@ -104,7 +104,7 @@ class LLMClient:
             return False
 
 
-    async def ask(self, prompt: str) -> str | None:
+    async def ask(self, prompt: str) -> str | None: # не работает с _bild_prompt
         """Отправляет запрос и возвращает текст ответа."""
         client = self._get_client()
         try:
