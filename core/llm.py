@@ -1,4 +1,5 @@
 # core/llm.py
+import asyncio
 import logging
 import json
 
@@ -22,25 +23,32 @@ class LLMClient:
         self.keep_alive = keep_alive
         self._client: httpx.AsyncClient | None = None
         self._stream_client: httpx.AsyncClient | None = None
+        self.lock = asyncio.Lock()
 
     """Ленивая инициализация.
     Клиент создаётся только при первом обращении.
     Переиспользование соединений (connection pooling).
     код не защищён от гонок. Если два корутины одновременно вызовут _get_client() до создания клиента, может создаться два клиента.
     Обычно решается через asyncio.Lock."""
-    def _get_client(self) -> httpx.AsyncClient:
-        print("Попытка выполнить _get_client (llm).")
-        if self._client is None:
-            self._client = httpx.AsyncClient(timeout=self.timeout)
-        print("Успешно выполнили _get_client (llm), вернули _client")
-        return self._client
+    async def _get_client(self) -> httpx.AsyncClient:
 
-    def _get_stream_client(self) -> httpx.AsyncClient:
-        print ("LLM: method _get_stream_client: Попытка выполнить.")
-        if self._stream_client is None:
-            self._stream_client = httpx.AsyncClient(timeout=self.timeout)
-        print("LLM: method _get_stream_client: Успешно выполнили _get_stream_client")
-        return self._stream_client
+        if self._client is not None:
+            return self._client
+
+        async with self.lock:
+            if self._client is None:
+                self._client = httpx.AsyncClient(timeout=self.timeout)
+            return self._client
+
+    async def _get_stream_client(self) -> httpx.AsyncClient:
+
+        if self._stream_client is not None:
+            return self._stream_client
+
+        async with self.lock:
+            if self._stream_client is None:
+                self._stream_client = httpx.AsyncClient(timeout=self.timeout)
+            return self._stream_client
 
     async def close_client(self) -> None:
         if self._client is not None:

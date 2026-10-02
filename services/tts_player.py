@@ -4,6 +4,10 @@ from datetime import datetime
 
 from core.tts import TextToSpeech
 
+
+BASE_DIR = Path(__file__).parent
+
+
 #Принимает текст с приоритетом, играет его через TTS в VB-Cable, не блокируя вызывающий код
 
 class TTSPlayer:
@@ -18,7 +22,10 @@ class TTSPlayer:
 
     async def start(self,):
         self.queue = asyncio.Queue()
-        self.text_to_speech = TextToSpeech()
+        self.text_to_speech = TextToSpeech(
+            model_path=BASE_DIR / "tts_models" / "kokoro-v1.0.onnx",
+            voices_path=BASE_DIR / "tts_models" / "voices-v1.0.bin",
+        )
         #Запуск очереди фоном
         self._task = asyncio.create_task(self._process_queue())
         
@@ -34,7 +41,7 @@ class TTSPlayer:
             except asyncio.CancelledError:
                 pass
             self._task = None
-
+            
     async def speak(self, message):
         await self.queue.put(message)        
 
@@ -53,6 +60,7 @@ class TTSPlayer:
                 break
 
     async def _local_tts_stream(self):
-
+        pass
 
     async def _stream_edge_tts(self):
+        pass

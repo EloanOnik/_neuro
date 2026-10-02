@@ -116,7 +116,7 @@ class Brain:
 
     async def _stream_llm(self, prompt): # отправляет элемент из очереди в llm # подумать на счет async, yield
         """output llm (ollama) tokens"""
-        self.llm_client.ask(prompt)
+        await self.llm_client.stream_ask_generator(prompt)
         
 
 
