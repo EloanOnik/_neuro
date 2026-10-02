@@ -37,7 +37,7 @@ class Brain:
             )
         return prompt
 
-    async def start(self):
+    async def start(self): 
         print("Попытка выполнить start (brain)")
         self.queue = asyncio.Queue()
         self.llm_client = LLMClient(model=self.model)
