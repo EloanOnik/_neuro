@@ -2,6 +2,7 @@ import queue
 
 from adapters.chat.twitch import TwitchChat
 
+#ПЕРЕПИСАТЬ ДЛЯ КАЖДОГО СООБЩЕНИЯ
 
 class FilterTwitchChat:
     def __init__(
