@@ -62,7 +62,7 @@ class LLMClient:
 
     async def load_model(self) -> bool:
         """Прогревает модель в память (пустой запрос)."""
-        client = self._get_client() #Возможно гонка
+        client = await self._get_client() #Возможно гонка
         print("await self._get_client() в load_model прошел (llm).")
         try:
             response = await client.post(
@@ -85,8 +85,33 @@ class LLMClient:
             print(f"DEBUG load_model: {type(e).__name__}: {e}")
             return False
 
-    async def stop(self):
-        client = self._get_client() #Возможно гонка
+    async def load_stream_model(self) -> bool:
+        """Прогревает модель в память (пустой запрос)."""
+        client = await self._get_stream_client() #Возможно гонка
+        print("await self._get_client() в load_model прошел (llm).")
+        try:
+            response = await client.post(
+                self.url,
+                json={
+                    "model": self.model,
+                    "messages": [{"role": "user", "content": "Привет!"}],
+                    "stream": False,
+                    "keep_alive": self.keep_alive,
+                },
+            )
+            print(f"DEBUG load_model: status={response.status_code}")
+            print(f"DEBUG load_model: body={response.text[:500]}")
+            return response.status_code == 200
+        #except httpx.RequestError as e:
+         #   logger.error("LLM: ошибка загрузки модели: %s", e)
+        #    print(f"LLM: ошибка загрузки модели: {e}")
+       #     return False
+        except Exception as e:
+            print(f"DEBUG load_model: {type(e).__name__}: {e}")
+            return False
+
+    async def stop_client(self):
+        client = await self._get_client() #Возможно гонка       
         url = self.url.replace("/api/chat", "/api/generate")
         try:
             response = await client.post(
@@ -99,22 +124,48 @@ class LLMClient:
             )
             if response.status_code >=400:
                 logger.error(
-                    "LLM stop вернул статус %s: %s",
+                    "llm: class LLMClient: method stop_client: вернул статус %s: %s",
                     response.status_code, response.text,
                 )
-                print(f"LLM stop вернул статус {response.status_code}: {response.text}")
+                print(f"llm: class LLMClient: method stop_client: вернул статус {response.status_code}: {response.text}")
                 return False
             return True
 
         except httpx.RequestError as e:
-            logger.error("LLMClient.stop: не удалось выгрузить модель: %s", e)
-            print(f"Объект LLMClient не смог вызвать метод stop (не получилось выключить llm и убрать из памяти) {e}")
+            logger.error("llm: class LLMClient: method stop_client: не удалось выгрузить модель: %s", e)
+            print(f"llm: class LLMClient: method stop_client: не удалось выгрузить модель: {e}")
+            return False
+
+    async def stop_stream_client(self):
+        client = await self._get_stream_client() #Возможно гонка       
+        url = self.url.replace("/api/chat", "/api/generate")
+        try:
+            response = await client.post(
+                url,
+                json={
+                    "model": self.model,
+                    "keep_alive": 0,
+                },
+                timeout=10.0,
+            )
+            if response.status_code >=400:
+                logger.error(
+                    "llm: class LLMClient: method stop_stream_client: вернул статус %s: %s",
+                    response.status_code, response.text,
+                )
+                print(f"llm: class LLMClient: method stop_stream_client: вернул статус {response.status_code}: {response.text}")
+                return False
+            return True
+
+        except httpx.RequestError as e:
+            logger.error("llm: class LLMClient: method stop_stream_client: не удалось выгрузить модель: %s", e)
+            print(f"llm: class LLMClient: method stop_stream_client: не удалось выгрузить модель: {e}")
             return False
 
 
     async def ask(self, prompt: str) -> str | None: # не работает с _bild_prompt
         """Отправляет запрос и возвращает текст ответа."""
-        client = self._get_client()
+        client = await self._get_client()
         try:
             response = await client.post(
                 self.url,
@@ -141,7 +192,7 @@ class LLMClient:
 
     async def stream_ask_generator(self, message: list):
         """Отправляет запрос и возвращает токены ответа."""
-        client = self._get_stream_client()
+        client = await self._get_stream_client()
 
         # Открываем контекстный менеджер стрима
         async with client.stream("POST",
