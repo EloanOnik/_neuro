@@ -74,8 +74,9 @@ class TTSPlayer:
             except asyncio.QueueEmpty:
                 break
 
-    async def _local_tts_stream(self):
-        pass
+    # async def _local_tts_stream(self):
+    #    await user_message = self.queue.get()
+    #    await self.text_to_speech.speak()
 
-    async def _stream_edge_tts(self):
-        pass
+    #async def _stream_edge_tts(self):
+    #    pass
