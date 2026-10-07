@@ -1,11 +1,10 @@
 import asyncio
 from pathlib import Path
-from datetime import datetime
 
 from core.tts import TextToSpeech
 
 
-BASE_DIR = Path(__file__).parent
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 #Принимает текст с приоритетом, играет его через TTS в VB-Cable, не блокируя вызывающий код
@@ -14,7 +13,6 @@ class TTSPlayer:
     def __init__(
         self,
     ):
-
         self.text_to_speech: TextToSpeech | None = None
         self._task = None
         self.queue = None

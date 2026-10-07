@@ -41,6 +41,7 @@ class Brain:
         print("Попытка выполнить start (brain)")
         self.queue = asyncio.Queue()
         self.llm_client = LLMClient(model=self.model)
+        self.tts_player = TTSPlayer()
         if not await self.llm_client.load_model():
             raise RuntimeError("Не удалось загрузить модель LLM. Выход из start (brain)")
         print("LLM модель успешно загружена. Выход из start (brain)")
@@ -116,7 +117,7 @@ class Brain:
 
     async def _stream_llm(self, prompt): # отправляет элемент из очереди в llm # подумать на счет async, yield
         """output llm (ollama) tokens"""
-        await self.llm_client.stream_ask_generator(prompt)
+        yield self.llm_client.stream_ask_generator(prompt)
         
 
 
@@ -132,7 +133,7 @@ class Brain:
             buffer += token
             full_response += token
             if buffer.endswith(('.', '!', '?')):
-                self.tts_player.speak(buffer)
+                await self.tts_player.speak(buffer)
                 buffer = ""
 
         if len(buffer) != 0:
@@ -140,3 +141,5 @@ class Brain:
             buffer = ""
 
         return full_response
+
+    

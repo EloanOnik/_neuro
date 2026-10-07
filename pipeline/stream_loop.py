@@ -18,6 +18,7 @@ class StreamLoop:
 
     #соединить все модули
     #TwitchChat (поток) → Filter → Brain.enqueue() → очередь → LLM → TTS → аудио
+    #TwitchChat(thread) -> queue.Queue[str] -> StreamLoop(async) -> Brain.enqueue(dict) -> LLM -> TTS -> VB-Cable
 
 
     async def start(self):
@@ -32,6 +33,7 @@ class StreamLoop:
         self.filter = FilterTwitchChat(self.twitch_chat, banned_words=[])
         self.brain = Brain()
         await self.brain.start()
+        await self.twitch_chat.start()
         await self.brain.tts_player.start()
         self._task = asyncio.create_task(self._poll_chat())
 
@@ -48,10 +50,10 @@ class StreamLoop:
                 pass
             self._task = None
         if self.twitch_chat:
-            self.twitch_chat.stop()
+            await self.twitch_chat.stop()
             self.twitch_chat = None
         if self.brain:
-            self.brain.stop()
+            await self.brain.stop()
             self.brain = None
         
 
