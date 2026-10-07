@@ -14,8 +14,8 @@ class LLMClient:
         self,
         model: str = "qwen2.5:3b",
         url: str = "http://localhost:11434/api/chat",
-        timeout: float = 30.0,
-        keep_alive: str = "5m",
+        timeout: float = 60.0,
+        keep_alive: str = "10m",
     ):
         self.model = model
         self.url = url
@@ -207,8 +207,11 @@ class LLMClient:
             response.raise_for_status()
             # Потоковая передача чанков (lines) наружу через yield
             async for line in response.aiter_lines():
-                chunk = json.loads(line)
-                if chunk.get("done") is True: return
-                token = chunk.get("message", {}).get("content", "")
-                if token != "":
-                    yield token
+                if not line.strip():
+                    print("llm: class LLMClient: method stream_ask_generator: при попытке передаче чанков, строка оказалась пустой или содержащей только пробелы.")
+                else:
+                    chunk = json.loads(line)
+                    if chunk.get("done") is True: return
+                    token = chunk.get("message", {}).get("content", "")
+                    if token != "":
+                        yield token

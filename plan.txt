@@ -1,0 +1,109 @@
+## Анализ проекта
+
+### Критические недочеты
+
+**1. `services/tts_player.py` — пустая заглушка**
+Все методы (`start`, `stop`, `speak`, `_process_queue`, `_stream_edge_tts`) пустые. Brain не может работать.
+
+**2. `services/brain.py` — не работает**
+- `_stream_llm` (стр. 116-118): ## Анализ проекта
+
+### Критические недочеты
+
+**1. `services/tts_player.py` — пустая заглушка**
+Все методы (`start`, `stop`, `speak`, `_process_queue`, `_stream_edge_tts`) пустые. Brain не может работать.
+
+**2. `services/brain.py` — не работает**
+- `_stream_llm` (стр. 116-118): вызывает `self.llm_client.ask(prompt)` без `await` и не возвращает токены. Нужно использовать `stream_ask_generator` и `yield`.
+- `_flush_tts_buffer` (стр. 134, 138): вызывает `self.tts_player.speak(buffer)` без `await` и с неправильными аргументами (метод ожидает `voice, message`).
+
+**3. `main.py` не использует Brain**
+Есть готовый `Brain` с очередью и контекстом, но `main.py` работает напрямую с `LLMClient` и `TextToSpeech`, минуя всю архитектуру.
+
+**4. `requirements.txt` пустый**
+Нет зафиксированных зависимостей (kokoro-onnx, sounddevice, scipy, httpx, pyyaml и др.).
+
+**5. `adapters/chat/twitch.py` — синхронный блокирующий код**
+Использует `threading` и `socket`, не интегрирован с asyncio. Нужен асинхронный вариант или обёртка.
+
+**6. `core/tts.py` — нет сохранения в файл**
+`output_dir` передаётся в `__init__`, но `speak` не сохраняет WAV (в отличие от закомментированной версии с piper).
+
+**7. `device_index=13` захардкожен** в `core/tts.py:55` — нужно автопоиск VB-Cable.
+
+**8. Нет STT** — план говорит о faster-whisper, но кода нет.
+
+**9. Нет логирования** — вместо `loguru` используется `print`.
+
+**10. Тестовые файлы** `mainss.py`, `prosto.py`, `test_cable.py` — нужно убрать в `tests/` или удалить.
+
+**11. `core/events.py` закомментирован** и не используется.
+
+**12. `filter/filter_twitch_chat.py` не интегрирован** в пайплайн.
+
+---
+
+### Что делать дальше (по приоритету)
+
+1. **Заполнить `requirements.txt`** — зафиксировать зависимости
+2. **Реализовать `TTSPlayer`** — очередь с приоритетами, интеграция с Kokoro/Edge-TTS, вывод в VB-Cable
+3. **Исправить `Brain._stream_llm`** — использовать `stream_ask_generator`, добавить `yield`
+4. **Исправить `Brain._flush_tts_buffer`** — добавить `await`, исправить вызов `speak`
+5. **Интегрировать TwitchChat** — переписать на asyncio или обернуть в `asyncio.to_thread`
+6. **Создать полноценный `main.py`** — связать TwitchChat → Filter → Brain → TTS
+7. **Добавить STT** — faster-whisper + PTT
+8. **Добавить логирование** — loguru вместо print
+9. **Автопоиск VB-Cable** — вместо захардкоженного `device_index`
+10. **Убрать тестовые файлы** в `tests/`
+
+---
+
+### Главное
+
+Проект находится на стадии "заготовки есть, но пайплайн не связан". Архитектура (Brain, ChatContext, LLMClient) заложена правильно, но ключевые методы либо пустые, либо с ошибками. Начнить стоит с реализации `TTSPlayer` и исправления `Brain` — это ядро системы.вызывает `self.llm_client.ask(prompt)` без `await` и не возвращает токены. Нужно использовать `stream_ask_generator` и `yield`.
+- `_flush_tts_buffer` (стр. 134, 138): вызывает `self.tts_player.speak(buffer)` без `await` и с неправильными аргументами (метод ожидает `voice, message`).
+
+**3. `main.py` не использует Brain**
+Есть готовый `Brain` с очередью и контекстом, но `main.py` работает напрямую с `LLMClient` и `TextToSpeech`, минуя всю архитектуру.
+
+**4. `requirements.txt` пустый**
+Нет зафиксированных зависимостей (kokoro-onnx, sounddevice, scipy, httpx, pyyaml и др.).
+
+**5. `adapters/chat/twitch.py` — синхронный блокирующий код**
+Использует `threading` и `socket`, не интегрирован с asyncio. Нужен асинхронный вариант или обёртка.
+
+**6. `core/tts.py` — нет сохранения в файл**
+`output_dir` передаётся в `__init__`, но `speak` не сохраняет WAV (в отличие от закомментированной версии с piper).
+
+**7. `device_index=13` захардкожен** в `core/tts.py:55` — нужно автопоиск VB-Cable.
+
+**8. Нет STT** — план говорит о faster-whisper, но кода нет.
+
+**9. Нет логирования** — вместо `loguru` используется `print`.
+
+**10. Тестовые файлы** `mainss.py`, `prosto.py`, `test_cable.py` — нужно убрать в `tests/` или удалить.
+
+**11. `core/events.py` закомментирован** и не используется.
+
+**12. `filter/filter_twitch_chat.py` не интегрирован** в пайплайн.
+
+---
+
+### Что делать дальше (по приоритету)
+
+1. **Заполнить `requirements.txt`** — зафиксировать зависимости
+2. **Реализовать `TTSPlayer`** — очередь с приоритетами, интеграция с Kokoro/Edge-TTS, вывод в VB-Cable
+3. **Исправить `Brain._stream_llm`** — использовать `stream_ask_generator`, добавить `yield`
+4. **Исправить `Brain._flush_tts_buffer`** — добавить `await`, исправить вызов `speak`
+5. **Интегрировать TwitchChat** — переписать на asyncio или обернуть в `asyncio.to_thread`
+6. **Создать полноценный `main.py`** — связать TwitchChat → Filter → Brain → TTS
+7. **Добавить STT** — faster-whisper + PTT
+8. **Добавить логирование** — loguru вместо print
+9. **Автопоиск VB-Cable** — вместо захардкоженного `device_index`
+10. **Убрать тестовые файлы** в `tests/`
+
+---
+
+### Главное
+
+Проект находится на стадии "заготовки есть, но пайплайн не связан". Архитектура (Brain, ChatContext, LLMClient) заложена правильно, но ключевые методы либо пустые, либо с ошибками. Начнить стоит с реализации `TTSPlayer` и исправления `Brain` — это ядро системы.
