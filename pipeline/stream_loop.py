@@ -15,6 +15,7 @@ class StreamLoop:
         self.brain: Brain | None = None
         self.queue = None
         self._task = None
+        self._started = False
 
     #соединить все модули
     #TwitchChat (поток) → Filter → Brain.enqueue() → очередь → LLM → TTS → аудио
@@ -33,13 +34,13 @@ class StreamLoop:
         self.filter = FilterTwitchChat(self.twitch_chat, banned_words=[])
         self.brain = Brain()
         await self.brain.start()
-        await self.twitch_chat.start()
-        await self.brain.tts_player.start()
+        self.twitch_chat.start()
         self._task = asyncio.create_task(self._poll_chat())
+        self._started = True
 
 
     async def stop(self):
-        if (self.queue is None) and (self.brain is None) and (self.filter is None):
+        if not self._started:
             print("StreamLoop: method stop: start не запустился, что бы выполнять stop")
             return
         if self._task:
@@ -48,9 +49,9 @@ class StreamLoop:
                 await self._task
             except asyncio.CancelledError:
                 pass
-            self._task = None
+            self._task = None            
         if self.twitch_chat:
-            await self.twitch_chat.stop()
+            self.twitch_chat.stop()
             self.twitch_chat = None
         if self.brain:
             await self.brain.stop()
@@ -75,5 +76,11 @@ class StreamLoop:
                 break
 
     async def _message(self, item):
-        if self.filter(item):
-            await self.brain.queue(item)
+        cleaned = self.filter(item)
+        if not cleaned:
+            return
+        await self.brain.enqueue(
+            user=item["user"],
+            text=cleaned,
+            meta={"source": "twitch"},
+        )

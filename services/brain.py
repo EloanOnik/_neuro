@@ -21,10 +21,11 @@ class Brain:
         self.queue: asyncio.Queue | None = None
         self.llm_client: LLMClient | None = None
         self.chat_context = ChatContext()
-        self.tts_player = TTSPlayer()
+        #self.tts_player = TTSPlayer()
         self._task = None
         self.path_system_prompt = Path(path_system_prompt)
         self.system_prompt = self._load_system_prompt()
+        self._started = False
 
     def _load_system_prompt(self) -> str:
         with self.path_system_prompt.open(encoding="utf-8") as f:
@@ -42,7 +43,8 @@ class Brain:
         self.queue = asyncio.Queue()
         self.llm_client = LLMClient(model=self.model)
         self.tts_player = TTSPlayer()
-        if not await self.llm_client.load_model():
+        self._started = True
+        if not await self.llm_client.load_stream_model():
             raise RuntimeError("Не удалось загрузить модель LLM. Выход из start (brain)")
         print("LLM модель успешно загружена. Выход из start (brain)")
         # запустить фоновую задачу обработки очереди
@@ -50,7 +52,7 @@ class Brain:
 
     async def stop(self):
         print("Попытка выполнить stop. (brain)")
-        if (self.queue is None) and (self.llm_client is None):
+        if not self._started:
             print("Brain: start не запустился, что бы выполнять stop")
             return
         # 1. Остановить приём новых сообщений
@@ -62,12 +64,15 @@ class Brain:
                 pass
             self._task = None
         if self.llm_client:
-            await self.llm_client.stop()
+            await self.llm_client.stop_client()
+            await self.llm_client.stop_stream_client()
             await self.llm_client.close_client()
             await self.llm_client.close_stream_client()
+            self.llm_client = None
         if self.tts_player:
             await self.tts_player.stop()
         print("Brain: остановлен")
+        self._started = False
         
 
     async def enqueue(self, user: str, text: str, meta: dict):
@@ -115,9 +120,9 @@ class Brain:
         return messages
 
 
-    async def _stream_llm(self, prompt): # отправляет элемент из очереди в llm # подумать на счет async, yield
+    def _stream_llm(self, prompt): # отправляет элемент из очереди в llm # подумать на счет async, yield
         """output llm (ollama) tokens"""
-        yield self.llm_client.stream_ask_generator(prompt)
+        return self.llm_client.stream_ask_generator(prompt)
         
 
 
@@ -137,7 +142,7 @@ class Brain:
                 buffer = ""
 
         if len(buffer) != 0:
-            self.tts_player.speak(buffer)
+            await self.tts_player.speak(buffer)
             buffer = ""
 
         return full_response
