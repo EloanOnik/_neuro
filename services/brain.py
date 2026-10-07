@@ -21,11 +21,12 @@ class Brain:
         self.queue: asyncio.Queue | None = None
         self.llm_client: LLMClient | None = None
         self.chat_context = ChatContext()
-        #self.tts_player = TTSPlayer()
+        self.tts_player = None
         self._task = None
         self.path_system_prompt = Path(path_system_prompt)
         self.system_prompt = self._load_system_prompt()
         self._started = False
+        self._maxsize = 10
 
     def _load_system_prompt(self) -> str:
         with self.path_system_prompt.open(encoding="utf-8") as f:
@@ -43,10 +44,11 @@ class Brain:
         self.queue = asyncio.Queue()
         self.llm_client = LLMClient(model=self.model)
         self.tts_player = TTSPlayer()
-        self._started = True
+        await self.tts_player.start()
         if not await self.llm_client.load_stream_model():
             raise RuntimeError("Не удалось загрузить модель LLM. Выход из start (brain)")
         print("LLM модель успешно загружена. Выход из start (brain)")
+        self._started = True
         # запустить фоновую задачу обработки очереди
         self._task = asyncio.create_task(self._process_queue())
 
@@ -64,9 +66,9 @@ class Brain:
                 pass
             self._task = None
         if self.llm_client:
-            await self.llm_client.stop_client()
+        #    await self.llm_client.stop_client()
             await self.llm_client.stop_stream_client()
-            await self.llm_client.close_client()
+        #    await self.llm_client.close_client()
             await self.llm_client.close_stream_client()
             self.llm_client = None
         if self.tts_player:
@@ -90,13 +92,14 @@ class Brain:
         print("Brain: _process_queue запущен")
         while True:
             try:
-                item = await self.queue.get()
-                try:
-                    await self._handle_item(item)
-                except Exception as e:
-                    print(f"{type(e).__name__}: {e}")
-                finally:
-                    self.queue.task_done()
+                while self.queue.qsize() < self._maxsize: # ограничитель размера очереди
+                    item = await self.queue.get()
+                    try:
+                        await self._handle_item(item)
+                    except Exception as e:
+                        print(f"{type(e).__name__}: {e}")
+                    finally:
+                        self.queue.task_done()
             except asyncio.CancelledError:
                 print("Brain: method _process_queue: except CancelledError")
                 break
