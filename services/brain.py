@@ -5,8 +5,8 @@ import yaml
 from pathlib import Path
 
 from core.llm import LLMClient
-from core.context import ChatContext
 from services.tts_player import TTSPlayer
+from core.context import ChatContext
 
 _BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -14,6 +14,7 @@ _BASE_DIR = Path(__file__).resolve().parent.parent
 class Brain:
     def __init__(
         self,
+        tts_player: TTSPlayer,
         model: str = "qwen2.5:3b",
         path_system_prompt: str | Path = _BASE_DIR / "system" / "system.yaml",
     ):
@@ -21,7 +22,7 @@ class Brain:
         self.queue: asyncio.Queue | None = None
         self.llm_client: LLMClient | None = None
         self.chat_context = ChatContext()
-        self.tts_player = None
+        self.tts_player = tts_player
         self._task = None
         self.path_system_prompt = Path(path_system_prompt)
         self.system_prompt = self._load_system_prompt()
@@ -41,22 +42,26 @@ class Brain:
 
     async def start(self): 
         print("Попытка выполнить start (brain)")
-        self.queue = asyncio.Queue()
+        if self._started:
+            print("brain: class Brain: method async start: метод start не может быть запущен дважды")
+            return
         self.llm_client = LLMClient(model=self.model)
-        self.tts_player = TTSPlayer()
-        await self.tts_player.start()
         if not await self.llm_client.load_stream_model():
+            await self.llm_client.close_stream_client()
+            self.llm_client = None
             raise RuntimeError("Не удалось загрузить модель LLM. Выход из start (brain)")
+        self.queue = asyncio.Queue(maxsize=self._maxsize)
         print("LLM модель успешно загружена. Выход из start (brain)")
-        self._started = True
         # запустить фоновую задачу обработки очереди
         self._task = asyncio.create_task(self._process_queue())
+        self._started = True
 
     async def stop(self):
         print("Попытка выполнить stop. (brain)")
         if not self._started:
             print("Brain: start не запустился, что бы выполнять stop")
             return
+        self._started = False
         # 1. Остановить приём новых сообщений
         if self._task:
             self._task.cancel()
@@ -66,19 +71,19 @@ class Brain:
                 pass
             self._task = None
         if self.llm_client:
-        #    await self.llm_client.stop_client()
-            await self.llm_client.stop_stream_client()
-        #    await self.llm_client.close_client()
-            await self.llm_client.close_stream_client()
-            self.llm_client = None
-        if self.tts_player:
-            await self.tts_player.stop()
+            try:
+                await self.llm_client.stop_stream_client()
+            finally:
+                await self.llm_client.close_stream_client()
+        self.queue = None
+        self.llm_client = None
         print("Brain: остановлен")
-        self._started = False
+        
+
         
 
     async def enqueue(self, user: str, text: str, meta: dict):
-        if self.queue is None:
+        if self.queue is None or not self._started:
             raise RuntimeError("Brain не запущен")        
         await self.queue.put({
             "user": user,
@@ -92,14 +97,13 @@ class Brain:
         print("Brain: _process_queue запущен")
         while True:
             try:
-                while self.queue.qsize() < self._maxsize: # ограничитель размера очереди
-                    item = await self.queue.get()
-                    try:
-                        await self._handle_item(item)
-                    except Exception as e:
-                        print(f"{type(e).__name__}: {e}")
-                    finally:
-                        self.queue.task_done()
+                item = await self.queue.get()
+                try:
+                    await self._handle_item(item)
+                except Exception as e:
+                    print(f"{type(e).__name__}: {e}")
+                finally:
+                    self.queue.task_done()
             except asyncio.CancelledError:
                 print("Brain: method _process_queue: except CancelledError")
                 break
@@ -138,11 +142,13 @@ class Brain:
         full_response = ""
 
         async for token in tokens_async_iterator:
+            print(token, end="", flush=True)
             buffer += token
             full_response += token
             if buffer.endswith(('.', '!', '?')):
                 await self.tts_player.speak(buffer)
                 buffer = ""
+        print()
 
         if len(buffer) != 0:
             await self.tts_player.speak(buffer)

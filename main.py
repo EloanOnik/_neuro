@@ -1,53 +1,36 @@
-# main.py
 import asyncio
-from pathlib import Path
+import queue
 
-from core.llm import LLMClient
-from core.tts import TextToSpeech
-
-BASE_DIR = Path(__file__).parent
+from services.brain import Brain
+from services.tts_player import TTSPlayer
+from adapters.chat.twitch import TwitchChat
 
 
 async def main():
-    # Инициализация
-    llm = LLMClient(model="qwen2.5:3b")
-    tts = TextToSpeech(
-        model_path=BASE_DIR / "tts_models" / "kokoro-v1.0.onnx",
-        voices_path=BASE_DIR / "tts_models" / "voices-v1.0.bin",
-        #output_dir=BASE_DIR / "output",
-    )
+    tts = TTSPlayer()
+    await tts.start()
 
-    # Прогрев LLM
-    if not await llm.load_model():
-        print("Не удалось загрузить модель LLM")
-        return
-    print("LLM: модель загружена")
-
-    print("Введите текст (Ctrl+C для выхода):")
-
+    brain = Brain(tts_player=tts)
     try:
-        while True:
-            user_input = await asyncio.to_thread(input, "> ")
-            if not user_input.strip():
-                continue
+        await brain.start()
+    except Exception:
+        await tts.stop()
+        raise
 
-            answer = await llm.ask(user_input)
-            if not answer:
-                continue
+    chat = TwitchChat();  chat.start()
 
-            print(f": {answer}")
-            await tts.speak(answer)
+    while True:
+        try:
+            raw = await asyncio.to_thread(chat.message_queue.get, True, 2)
+        except queue.Empty:
+            continue
 
-    except KeyboardInterrupt:
-        print("\nЗавершение работы...")
+        if not raw or ":" not in raw:
+            continue
 
-    finally:
-        print("\nЗавершение работы...")
-        await llm.stop()      # ← выгрузить модель
-        await llm.close()     # ← закрыть httpx-клиент
-        if hasattr(tts, "close"):
-            await tts.close()
-
+        user_part, text = raw.split(":", 1)
+        user = user_part.strip("[]")
+        await brain.enqueue(user=user, text=text.strip(), meta={"source": "twitch"})
 
 if __name__ == "__main__":
     asyncio.run(main())

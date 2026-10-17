@@ -21,7 +21,7 @@ class TTSPlayer:
 
     async def start(self):
         self.queue = asyncio.Queue()
-        await self.text_to_speech = TextToSpeech(
+        self.text_to_speech = TextToSpeech(
             model_path=BASE_DIR / "tts_models" / "kokoro-v1.0.onnx",
             voices_path=BASE_DIR / "tts_models" / "voices-v1.0.bin",
         ) # Возможно без await
@@ -44,12 +44,12 @@ class TTSPlayer:
         if self.text_to_speech:
             self.text_to_speech = None
         if self.queue:
-            self._clear_queue
+            self._clear_queue()
             self.queue = None
             
     async def speak(self, message):
-        if self.queue.empty():
-            return
+        if self.queue is None:
+            raise RuntimeError("tts_player: class TTSPlayer: method async speak: TTSPlayer не запущен")
         await self.queue.put(message)        
 
     async def _process_queue(self):
