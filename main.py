@@ -1,69 +1,50 @@
 import asyncio
 import queue
-import logging
 import sys
+from datetime import datetime
+from pathlib import Path
+
+from loguru import logger  # ← вместо import logging
 
 from services.brain import Brain
 from services.tts_player import TTSPlayer
 from adapters.chat.twitch import TwitchChat
-from datetime import datetime
-from pathlib import Path
 
 
-def setup_logger() -> logging.Logger:
-    """Настраивает логгер: файл в папке с датой + вывод в консоль."""
+def setup_loguru():
+    """Настраивает Loguru: файл в папке с датой + консоль."""
+    # 1. Убираем дефолтный обработчик, чтобы не было дублей в консоли
+    logger.remove()
+
+    # 2. Настраиваем консольный вывод (цветной, в stderr)
+    logger.add(
+        sys.stderr,
+        level="INFO",
+        format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan> - <level>{message}</level>",
+    )
+
+    # 3. Настраиваем файловый вывод
     now = datetime.now()
     date_str = now.strftime("%Y-%m-%d")
     time_str = now.strftime("%H-%M-%S")
 
     log_dir = Path("logs") / date_str
     log_dir.mkdir(parents=True, exist_ok=True)
-
     log_file = log_dir / f"run_{time_str}.log"
 
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
-
-    if logger.handlers:
-        return logger
-
-    formatter = logging.Formatter(
-        fmt="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
+    logger.add(
+        log_file,
+        level="DEBUG",  # В файл пишем всё
+        format="{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {name} - {message}",
+        encoding="utf-8",  # Важно для Windows и кириллицы
     )
 
-    file_handler = logging.FileHandler(log_file, encoding="utf-8")
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(formatter)
-
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(formatter)
-
-    logger.addHandler(file_handler)
-    logger.addHandler(console_handler)
-
-    logger.info("Логирование настроено. Файл: %s", log_file)
-    return logger
-
-
-logger = setup_logger()
-
-
-def do_work():
-    logger.debug("Начинаем обработку (видно только в файле)")
-    logger.info("Обработка запущена")
-    logger.warning("Что-то подозрительное, но работаем дальше")
-    try:
-        1 / 0
-    except ZeroDivisionError:
-        logger.error("Деление на ноль!", exc_info=True)
-    logger.info("Работа завершена")
+    logger.info(f"Логирование настроено. Файл: {log_file}")
 
 
 async def main():
+    setup_loguru()  # Настройка теперь внутри main, а не на уровне модуля
     logger.info("Запуск main")
-
 
     tts = TTSPlayer()
     await tts.start()
@@ -72,10 +53,13 @@ async def main():
     try:
         await brain.start()
     except Exception:
+        logger.exception("Brain не запустился — останавливаю TTS")  # ← Автоматически со стектрейсом
         await tts.stop()
         raise
 
-    chat = TwitchChat();  chat.start()
+    chat = TwitchChat()
+    chat.start()
+    logger.info("TwitchChat подключён, слушаю")
 
     while True:
         try:
@@ -84,11 +68,13 @@ async def main():
             continue
 
         if not raw or ":" not in raw:
+            logger.debug(f"Пропущено невалидное сообщение: {raw!r}")
             continue
 
         user_part, text = raw.split(":", 1)
         user = user_part.strip("[]")
         await brain.enqueue(user=user, text=text.strip(), meta={"source": "twitch"})
+
 
 if __name__ == "__main__":
     asyncio.run(main())
