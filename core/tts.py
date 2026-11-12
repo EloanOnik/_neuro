@@ -81,7 +81,7 @@ class TextToSpeech:
         self._speak_lock = asyncio.Lock()
 
     def get_audio_devices(self):
-        print("=== Все VB-Cable / CABLE устройства ===")
+        print("Все VB-Cable / CABLE устройства")
         for i, dev in enumerate(sd.query_devices()):
             name = dev["name"]
             if "CABLE" in name.upper() or "VB-AUDIO" in name.upper():

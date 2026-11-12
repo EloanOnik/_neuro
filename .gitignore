@@ -9,6 +9,7 @@ venv/
 # Модели и бинарники
 tts_models/
 output/
+logs/
 *.onnx
 *.bin
 *.pt
