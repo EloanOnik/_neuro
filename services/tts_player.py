@@ -24,7 +24,10 @@ class TTSPlayer:
         self.text_to_speech = TextToSpeech(
             model_path=BASE_DIR / "tts_models" / "kokoro-v1.0.onnx",
             voices_path=BASE_DIR / "tts_models" / "voices-v1.0.bin",
+            device_index=None,
         ) # Возможно без await
+        if not self.text_to_speech.find_vbcable_devices():
+            raise RuntimeError("TTSPlayer: VB-Cable не найден")
         self._started = True
         #Запуск очереди фоном
         self._task = asyncio.create_task(self._process_queue())
