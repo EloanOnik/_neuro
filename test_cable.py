@@ -4,7 +4,7 @@ import sounddevice as sd
 
 
 def find_vbcable_devices():
-    print("=== Все VB-Cable / CABLE устройства ===")
+    print("=== Все VB-Cable / CABLE устройства")
     for i, dev in enumerate(sd.query_devices()):
         name = dev["name"]
         if "CABLE" in name.upper() or "VB-Audio" in name:
