@@ -14,7 +14,7 @@ _BASE_DIR = Path(__file__).resolve().parent.parent
 class Brain:
     def __init__(
         self,
-        tts_player: TTSPlayer,
+        tts_player: TTSPlayer | None = None,
         model: str = "qwen2.5:3b",
         path_system_prompt: str | Path = _BASE_DIR / "system" / "system.yaml",
     ):
@@ -22,7 +22,7 @@ class Brain:
         self.queue: asyncio.Queue | None = None
         self.llm_client: LLMClient | None = None
         self.chat_context = ChatContext()
-        self.tts_player = tts_player
+        self.tts_player = tts_player or TTSPlayer()
         self._task = None
         self.path_system_prompt = Path(path_system_prompt)
         self.system_prompt = self._load_system_prompt()
@@ -80,9 +80,7 @@ class Brain:
         print("Brain: остановлен")
         
 
-        
-
-    async def enqueue(self, user: str, text: str, meta: dict):
+    def enqueue(self, user: str, text: str, meta: dict):
         if self.queue is None or not self._started:
             raise RuntimeError("Brain не запущен") 
             
