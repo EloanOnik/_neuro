@@ -123,7 +123,7 @@ class Brain:
     async def _handle_item(self, item): # использует другие подметоды
         """Оркестратор Brain: промпт → LLM → TTS → контекст."""
         prompt = self._build_prompt(item) # создать промпт 
-        tokens = self._stream_llm(prompt) # просто вывод от ollama может стоит добавить await
+        tokens = await self._stream_llm(prompt) # просто вывод от ollama может стоит добавить await
         answer = await self._flush_tts_buffer(tokens) # собирает предложения из токенов -> озвучивает -> выдает полный ответ llm для input context
         self.chat_context.add_user_message(item["text"]) # добавляет наш запрос в context
         self.chat_context.add_assistant_message(answer) # добавляет ответ LLM в контекст

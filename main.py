@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import queue
 import sys
 from datetime import datetime
@@ -40,73 +41,96 @@ def setup_loguru() -> None:
     logger.info(f"Логирование настроено. Файл: {log_file}")
 
 
-async def _shutdown(tts: TTSPlayer, brain: Brain, chat: TwitchChat) -> None:
+async def _maybe_await(value) -> None:
+    """Ждёт результат, если это awaitable; иначе ничего не делает."""
+    if inspect.isawaitable(value):
+        await value
+
+
+async def _shutdown(
+    tts: TTSPlayer | None,
+    brain: Brain | None,
+    chat: TwitchChat | None,
+) -> None:
     logger.info("Shutdown: останавливаю сервисы")
 
-    # 1. Brain.stop() — отменяет _process_queue, выгружает модель, закрывает клиент
-    try:
-        await brain.stop()
-        logger.info("Brain: остановлен")
-    except Exception:
-        logger.exception("Brain: ошибка при остановке")
+    if brain is not None:
+        try:
+            await brain.stop()
+            logger.info("Brain: остановлен")
+        except Exception:
+            logger.exception("Brain: ошибка при остановке")
 
-    # 2. TTS
-    try:
-        await tts.stop()
-        logger.info("TTS: остановлен")
-    except Exception:
-        logger.exception("TTS: ошибка при остановке")
+    if tts is not None:
+        try:
+            await tts.stop()
+            logger.info("TTS: остановлен")
+        except Exception:
+            logger.exception("TTS: ошибка при остановке")
 
-    # 3. Чат
-    try:
-        if hasattr(chat, "stop"):
-            chat.stop()
+    if chat is not None and hasattr(chat, "stop"):
+        try:
+            await _maybe_await(chat.stop())
             logger.info("TwitchChat: остановлен")
-    except Exception:
-        logger.exception("TwitchChat: ошибка при остановке")
+        except Exception:
+            logger.exception("TwitchChat: ошибка при остановке")
 
     logger.info("Shutdown завершён")
+
+
+def _parse_message(raw: str) -> tuple[str, str] | None:
+    """Парсит строку вида '[user]: text'. Возвращает None, если формат неверный."""
+    if not raw or ":" not in raw:
+        return None
+
+    user_part, text = raw.split(":", 1)
+    user = user_part.strip("[]").strip()
+    text = text.strip()
+
+    if not user or not text:
+        return None
+
+    return user, text
 
 
 async def main() -> None:
     setup_loguru()
     logger.info("Запуск main")
 
-    tts = TTSPlayer()
-    await tts.start()
-    logger.info("TTSPlayer запущен")
+    tts: TTSPlayer | None = None
+    brain: Brain | None = None
+    chat: TwitchChat | None = None
 
-    brain = Brain(tts_player=tts)
     try:
+        tts = TTSPlayer()
+        await tts.start()
+        logger.info("TTSPlayer запущен")
+
+        brain = Brain(tts_player=tts)
         await brain.start()
-    except Exception:
-        logger.exception("Brain не запустился — останавливаю TTS")
-        await tts.stop()
-        raise
-    logger.info("Brain запущен")
+        logger.info("Brain запущен")
 
-    chat = TwitchChat()
-    chat.start()
-    logger.info("TwitchChat подключён, слушаю")
+        chat = TwitchChat()
+        chat.start()
+        logger.info("TwitchChat подключён, слушаю")
 
-    try:
         while True:
             try:
                 raw = await asyncio.to_thread(chat.message_queue.get, True, 2)
             except queue.Empty:
                 continue
 
-            if not raw or ":" not in raw:
+            parsed = _parse_message(raw)
+            if parsed is None:
                 logger.debug(f"Пропущено невалидное сообщение: {raw!r}")
                 continue
 
-            user_part, text = raw.split(":", 1)
-            user = user_part.strip("[]")
-            text = text.strip()
+            user, text = parsed
             logger.debug(f"Сообщение от {user}: {text!r}")
 
             try:
-                await brain.enqueue(user=user, text=text, meta={"source": "twitch"})
+                # enqueue синхронный — без await
+                brain.enqueue(user=user, text=text, meta={"source": "twitch"})
             except Exception:
                 logger.exception(f"Не удалось обработать сообщение от {user}")
 
@@ -118,6 +142,4 @@ if __name__ == "__main__":
     try:
         asyncio.run(main())
     except KeyboardInterrupt:
-        # Сюда попадаем после того, как finally в main() уже выполнил cleanup.
-        # Подавляем трейсбек — пользователь и так знает, что нажал Ctrl+C.
         pass
