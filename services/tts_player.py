@@ -20,7 +20,9 @@ class TTSPlayer:
 
 
     async def start(self):
-        self.queue = asyncio.Queue()
+        if self._started:
+            return
+        self.queue = asyncio.Queue(maxsize=10)
         self.text_to_speech = TextToSpeech(
             model_path=BASE_DIR / "tts_models" / "kokoro-v1.0.onnx",
             voices_path=BASE_DIR / "tts_models" / "voices-v1.0.bin",
@@ -49,6 +51,7 @@ class TTSPlayer:
         if self.queue:
             self._clear_queue()
             self.queue = None
+        self._started = True
             
     async def speak(self, message):
         if self.queue is None:
