@@ -83,7 +83,7 @@ class StreamLoop:
         if not cleaned:
             return
         await self.brain.enqueue(
-            user={"user"},
+            user=item.get("user"),
             text=cleaned["text"],
             meta={"source": "twitch"},
         )
