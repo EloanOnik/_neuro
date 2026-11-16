@@ -84,13 +84,27 @@ class Brain:
 
     async def enqueue(self, user: str, text: str, meta: dict):
         if self.queue is None or not self._started:
-            raise RuntimeError("Brain не запущен")        
-        await self.queue.put({
+            raise RuntimeError("Brain не запущен") 
+            
+        payload = {
             "user": user,
             "text": text,
             "meta": meta,
             "ts": time.time(),
-        })
+        }
+
+        if self.queue.full():
+            dropped = 0
+            while not self.queue.empty():
+                try:
+                    self.queue.get_nowait()
+                    self.queue.task_done()
+                    dropped += 1
+                except asyncio.QueueEmpty:
+                    break
+            print(f"Brain: очередь переполнена, сброшено сообщений: {dropped}")
+
+        self.queue.put_nowait(payload)
         print(f"Brain: enqueue {user}: {text}")
 
     async def _process_queue(self):
