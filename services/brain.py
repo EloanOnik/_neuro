@@ -5,7 +5,7 @@ import yaml
 from pathlib import Path
 
 from core.llm import LLMClient
-from services.tts_player import TTSPlayer
+from services.tts_player_v2 import TTSPlayer
 from core.context import ChatContext
 
 _BASE_DIR = Path(__file__).resolve().parent.parent

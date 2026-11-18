@@ -1,0 +1,19 @@
+tts:
+  engine: silero              # имя движка по умолчанию
+  fallback: edge              # необязательно: куда переключиться при падении
+  engines:
+    silero:
+      model_dir: tts_models/silero_onnx
+      speaker: xenia
+    kokoro:
+      model_path: tts_models/kokoro-v1.0.onnx
+      voices_path: tts_models/voices-v1.0.bin
+      voice: af_heart
+      speed: 1.0
+      lang: en-us
+    edge:
+      voice: ru-RU-DmitryNeural
+  audio:
+    target_sr: 48000
+    target_ch: 2
+    device_index: null        # null = автопоиск VB-Cable

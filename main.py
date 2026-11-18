@@ -7,9 +7,15 @@ from pathlib import Path
 
 from loguru import logger
 
+from core.audio.output import AudioOutput
+from core.tts.config import TTSConfig
+from core.tts.registry import create_engine
 from services.brain import Brain
-from services.tts_player import TTSPlayer
+from services.tts_player_v2 import TTSPlayer
 from adapters.chat.twitch import TwitchChat
+
+
+BASE_DIR = Path(__file__).resolve().parent
 
 
 def setup_loguru() -> None:
@@ -93,6 +99,12 @@ def _parse_message(raw: str) -> tuple[str, str] | None:
     return user, text
 
 
+def _build_engine(cfg: TTSConfig):
+    engine = create_engine(cfg.engine, **cfg.engine_kwargs(cfg.engine))
+    logger.info(f"TTS: выбран движок '{cfg.engine}'")
+    return engine
+
+
 async def main() -> None:
     setup_loguru()
     logger.info("Запуск main")
@@ -102,9 +114,18 @@ async def main() -> None:
     chat: TwitchChat | None = None
 
     try:
-        tts = TTSPlayer()
+        cfg = TTSConfig.load(BASE_DIR / "config" / "tts.yaml")
+        engine = _build_engine(cfg)
+
+        output = AudioOutput(
+            target_sr=cfg.audio.get("target_sr", 48000),
+            target_ch=cfg.audio.get("target_ch", 2),
+            device_index=cfg.audio.get("device_index"),
+        )
+
+        tts = TTSPlayer(engine=engine, output=output)
         await tts.start()
-        logger.info("TTSPlayer запущен")
+        logger.info(f"TTSPlayer запущен (engine={engine.name})")
 
         brain = Brain(tts_player=tts)
         await brain.start()
@@ -129,10 +150,12 @@ async def main() -> None:
             logger.debug(f"Сообщение от {user}: {text!r}")
 
             try:
-                # enqueue синхронный — без await
                 brain.enqueue(user=user, text=text, meta={"source": "twitch"})
             except Exception:
                 logger.exception(f"Не удалось обработать сообщение от {user}")
+            except queue.Empty:
+                logger.debug("main: queue пуста, ждём...")
+                continue
 
     finally:
         await _shutdown(tts, brain, chat)
