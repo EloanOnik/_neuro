@@ -1,7 +1,7 @@
 import asyncio
 from pathlib import Path
 
-from core.tts import TextToSpeech
+from core.tts.kokoro import TextToSpeech
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent

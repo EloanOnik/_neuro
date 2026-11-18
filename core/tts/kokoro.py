@@ -127,7 +127,6 @@ class TextToSpeech:
             logger.info("TTS.speak: {} достигло {}", label, count)
 
 
-
     @staticmethod
     def get_audio_devices():
         logger.info("Все VB-Cable / CABLE устройства")
