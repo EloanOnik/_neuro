@@ -1,0 +1,26 @@
+[project]
+name = "act"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Оник", email = "eloanonik@gmail.com" }
+]
+requires-python = ">=3.14"
+dependencies = [
+    "edge-tts==7.2.8",
+    "httpx==0.28.1",
+    "kokoro-onnx==0.4.7",
+    "numpy==2.5.3",
+    "ollama==0.6.2",
+    "pyyaml==6.0.3",
+    "scipy==1.18.1",
+    "sounddevice==0.5.6",
+]
+
+[project.scripts]
+act = "act:main"
+
+[build-system]
+requires = ["uv_build>=0.13.9,<0.14.0"]
+build-backend = "uv_build"

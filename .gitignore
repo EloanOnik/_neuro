@@ -1,11 +1,33 @@
-@"
 # Python
 __pycache__/
-__pycache__
 *.py[cod]
 *.egg-info/
+*.egg
+build/
+dist/
+pip-wheel-metadata/
+
+# Скомпилированные расширения
+*.so
+*.pyd
+*.dll
+
+# Окружения
 venv/
 .venv/
+env/
+ENV/
+
+# Кэши инструментов
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.benchmarks/
 
 # Модели и бинарники
 tts_models/
@@ -19,6 +41,12 @@ logs/
 *.safetensors
 *.gguf
 *.wav
+*.mp3
+*.flac
+*.ogg
+
+# Логи
+*.log
 
 # IDE
 .vscode/
@@ -26,4 +54,13 @@ logs/
 
 # Env
 .env
-"@ | Out-File -Encoding utf8 .gitignore
+.env.*
+!.env.example
+
+# Системный мусор
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Jupyter
+.ipynb_checkpoints/
