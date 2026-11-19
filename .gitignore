@@ -31,7 +31,6 @@ htmlcov/
 
 # Модели и бинарники
 tts_models/
-silero-tts-onnx/
 output/
 logs/
 *.onnx
