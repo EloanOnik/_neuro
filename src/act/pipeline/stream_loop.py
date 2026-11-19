@@ -1,9 +1,9 @@
 import asyncio
 import queue
 
-from adapters.chat.twitch import TwitchChat
-from filter.filter_twitch_chat import FilterTwitchChat
-from services.brain import Brain
+from act.adapters.chat.twitch import TwitchChat
+from act.filter.filter_twitch_chat import FilterTwitchChat
+from act.services.brain import Brain
 
 class StreamLoop:
     def __init__(

@@ -1,28 +1,31 @@
-# services/brain.py
+# src/act/services/brain.py
 import asyncio
 import time
-import yaml
 from pathlib import Path
 
-from core.llm import LLMClient
-from services.tts_player_v2 import TTSPlayer
-from core.context import ChatContext
+import yaml
+from loguru import logger
 
-_BASE_DIR = Path(__file__).resolve().parent.parent
+from act.core.context import ChatContext
+from act.core.llm import LLMClient
+from act.services.tts_player import TTSPlayer
+
+# src/act/services/brain.py -> parents[0]=services, [1]=act, [2]=src, [3]=корень проекта
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 class Brain:
     def __init__(
         self,
-        tts_player: TTSPlayer | None = None,
+        tts_player: TTSPlayer,
         model: str = "qwen2.5:3b",
-        path_system_prompt: str | Path = _BASE_DIR / "system" / "system.yaml",
+        path_system_prompt: str | Path = PROJECT_ROOT / "config" / "system.yaml",
     ):
         self.model = model
         self.queue: asyncio.Queue | None = None
         self.llm_client: LLMClient | None = None
         self.chat_context = ChatContext()
-        self.tts_player = tts_player or TTSPlayer()
+        self.tts_player = tts_player
         self._task = None
         self.path_system_prompt = Path(path_system_prompt)
         self.system_prompt = self._load_system_prompt()

@@ -7,15 +7,15 @@ from pathlib import Path
 
 from loguru import logger
 
-from core.audio.output import AudioOutput
-from core.tts.config import TTSConfig
-from core.tts.registry import create_engine
-from services.brain import Brain
-from services.tts_player_v2 import TTSPlayer
-from adapters.chat.twitch import TwitchChat
+from act.adapters.chat.twitch import TwitchChat
+from act.core.audio.output import AudioOutput
+from act.core.tts.config import TTSConfig
+from act.core.tts.registry import create_engine
+from act.services.brain import Brain
+from act.services.tts_player import TTSPlayer
 
-
-BASE_DIR = Path(__file__).resolve().parent
+# src/act/main.py -> parents[0]=src/act, parents[1]=src, parents[2]=корень проекта
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def setup_loguru() -> None:
@@ -33,7 +33,7 @@ def setup_loguru() -> None:
     )
 
     now = datetime.now()
-    log_dir = Path("logs") / now.strftime("%Y-%m-%d")
+    log_dir = PROJECT_ROOT / "logs" / now.strftime("%Y-%m-%d")
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = log_dir / f"run_{now.strftime('%H-%M-%S')}.log"
 
@@ -105,7 +105,7 @@ def _build_engine(cfg: TTSConfig):
     return engine
 
 
-async def main() -> None:
+async def _async_main() -> None:
     setup_loguru()
     logger.info("Запуск main")
 
@@ -114,7 +114,7 @@ async def main() -> None:
     chat: TwitchChat | None = None
 
     try:
-        cfg = TTSConfig.load(BASE_DIR / "config" / "tts.yaml")
+        cfg = TTSConfig.load(PROJECT_ROOT / "config" / "tts.yaml")
         engine = _build_engine(cfg)
 
         output = AudioOutput(
@@ -153,16 +153,18 @@ async def main() -> None:
                 brain.enqueue(user=user, text=text, meta={"source": "twitch"})
             except Exception:
                 logger.exception(f"Не удалось обработать сообщение от {user}")
-            except queue.Empty:
-                logger.debug("main: queue пуста, ждём...")
-                continue
 
     finally:
         await _shutdown(tts, brain, chat)
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Синхронная точка входа для pyproject.toml (`act = 'act.main:main'`)."""
     try:
-        asyncio.run(main())
+        asyncio.run(_async_main())
     except KeyboardInterrupt:
         pass
+
+
+if __name__ == "__main__":
+    main()

@@ -5,7 +5,7 @@ from typing import AsyncIterator
 import numpy as np
 from kokoro_onnx import Kokoro
 
-from core.tts.base import TTSCapabilities
+from act.core.tts.base import TTSCapabilities
 
 
 class KokoroEngine:

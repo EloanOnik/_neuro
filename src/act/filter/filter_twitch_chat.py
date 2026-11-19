@@ -1,6 +1,6 @@
 import queue
 
-from adapters.chat.twitch import TwitchChat
+from act.adapters.chat.twitch import TwitchChat
 
 #ПЕРЕПИСАТЬ ДЛЯ КАЖДОГО СООБЩЕНИЯ
 
