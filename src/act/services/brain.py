@@ -38,15 +38,14 @@ class Brain:
 
         prompt = (data.get("system_prompt") or "").strip()
         if not prompt:
-            raise ValueError(
-                f"system_prompt пустой или отсутствует: {self.path_system_prompt}"
-            )
+            error_msg = f"system_prompt пустой или отсутствует: {self.path_system_prompt}"
+            logger.error(error_msg)
+            raise ValueError(error_msg)
         return prompt
 
     async def start(self): 
-        print("Попытка выполнить start (brain)")
         if self._started:
-            print("brain: class Brain: method async start: метод start не может быть запущен дважды")
+            logger.debug("Brain.start: невозможно запустить start второй раз")
             return
         self.llm_client = LLMClient(model=self.model)
         if not await self.llm_client.load_stream_model():
@@ -54,15 +53,14 @@ class Brain:
             self.llm_client = None
             raise RuntimeError("Не удалось загрузить модель LLM. Выход из start (brain)")
         self.queue = asyncio.Queue(maxsize=self._maxsize)
-        print("LLM модель успешно загружена. Выход из start (brain)")
+        logger.info("Brain.start: Успешно")
         # запустить фоновую задачу обработки очереди
         self._task = asyncio.create_task(self._process_queue())
         self._started = True
 
     async def stop(self):
-        print("Попытка выполнить stop. (brain)")
         if not self._started:
-            print("Brain: start не запустился, что бы выполнять stop")
+            logger.debug("Brain.stop: start не запустился, что бы выполнять stop")
             return
         self._started = False
         # 1. Остановить приём новых сообщений
@@ -80,7 +78,7 @@ class Brain:
                 await self.llm_client.close_stream_client()
         self.queue = None
         self.llm_client = None
-        print("Brain: остановлен")
+        logger.info("Brain: остановлен")
         
 
     def enqueue(self, user: str, text: str, meta: dict):
@@ -120,7 +118,7 @@ class Brain:
                 finally:
                     self.queue.task_done()
             except asyncio.CancelledError:
-                print("Brain: method _process_queue: except CancelledError")
+                logger.exception("Brain._process_queue: except CancelledError")
                 break
 
     async def _handle_item(self, item): # использует другие подметоды
