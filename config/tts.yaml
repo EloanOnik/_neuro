@@ -1,6 +1,6 @@
 tts:
   engine: silero              # имя движка по умолчанию
-  fallback: edge              # необязательно: куда переключиться при падении
+  fallback:            # необязательно: куда переключиться при падении
   engines:
     silero:
       model_dir: tts_models/silero_onnx

@@ -32,15 +32,6 @@ class LLMClient:
     Переиспользование соединений (connection pooling).
     код не защищён от гонок. Если два корутины одновременно вызовут _get_client() до создания клиента, может создаться два клиента.
     Обычно решается через asyncio.Lock."""
-    # async def _get_client(self) -> httpx.AsyncClient:
-
-    #     if self._client is not None:
-    #         return self._client
-
-    #     async with self.lock:
-    #         if self._client is None:
-    #             self._client = httpx.AsyncClient(timeout=self.timeout)
-    #         return self._client
 
     async def _get_stream_client(self) -> httpx.AsyncClient:
 
@@ -52,45 +43,11 @@ class LLMClient:
                 self._stream_client = httpx.AsyncClient(timeout=self.timeout)
             return self._stream_client
 
-    # async def close_client(self) -> None:
-    #     if self._client is not None:
-    #         await self._client.aclose()
-    #         self._client = None
 
     async def close_stream_client(self) -> None:
         if self._stream_client is not None:
             await self._stream_client.aclose()
             self._stream_client = None
-
-    # async def load_model(self) -> bool:
-    #     """Прогревает модель в память (пустой запрос)."""
-    #     logger.debug("LLM.load_model: прогрев моедли {}", self.model)
-    #     client = await self._get_client() #Возможно гонка
-    #     try:
-    #         response = await client.post(
-    #             self.url,
-    #             json={
-    #                 "model": self.model,
-    #                 "messages": [{"role": "user", "content": "Привет!"}],
-    #                 "stream": False,
-    #                 "keep_alive": self.keep_alive,
-    #             },
-    #         )
-    #         logger.debug(
-    #             "LLM.load_model: HTTP {} body={!r}",
-    #             response.status_code, response.text[:200],
-    #         )
-    #         if response.status_code == 200:
-    #             logger.success("LLM.load_model: модель {} загружена", self.model)
-    #             return True
-    #         logger.error(
-    #             "LLM.load_model: HTTP {} при прогреве модели: {}",
-    #             response.status_code, response.text[:500],
-    #         )
-    #         return False
-    #     except httpx.RequestError:
-    #         logger.exception("LLM.load_model: сетевая ошибка при прогреве модели")
-    #         return False
 
 
     async def load_stream_model(self) -> bool:
@@ -123,30 +80,6 @@ class LLMClient:
             logger.exception("LLM.load_straem_model: сетевая ошибка при прогреве модели")
             return False
 
-    # async def stop_client(self):
-    #     logger.debug("LLM.stop_client: выгрузка модели {}", self.model)
-    #     client = await self._get_client() #Возможно гонка       
-    #     url = self.url.replace("/api/chat", "/api/generate")
-    #     try:
-    #         response = await client.post(
-    #             url,
-    #             json={
-    #                 "model": self.model,
-    #                 "keep_alive": 0,
-    #             },
-    #             timeout=10.0,
-    #         )
-    #         if response.status_code >=400:
-    #             logger.error(
-    #                 "LLM.stop_client: HTTP {} при выгрузке: {}",
-    #                 response.status_code, response.text[:500],
-    #             )
-    #             return False
-    #         logger.debug("LLM.stop_client: модель выгружена")
-    #         return True
-    #     except httpx.RequestError:
-    #         logger.exception("LLM.stop_client: не удалось выгрузить модель")
-    #         return False
 
     async def stop_stream_client(self):
         logger.debug("LLM.stop_stream_client: выгрузка модели {}", self.model)
@@ -174,33 +107,6 @@ class LLMClient:
             logger.exception("LLM.stop_stream_client: не удалось выгрузить модель")
             return False
 
-
-    # async def ask(self, prompt: str) -> str | None: # не работает с _bild_prompt
-    #     """Отправляет запрос и возвращает текст ответа."""
-    #     client = await self._get_client()
-    #     try:
-    #         response = await client.post(
-    #             self.url,
-    #             json={
-    #                 "model": self.model,
-    #                 "messages": [{"role": "user", "content": prompt}],
-    #                 "stream": False,
-    #                 "keep_alive": self.keep_alive,
-    #             },
-    #         )
-
-    #         if response.status_code != 200:
-    #             logger.error("LLM: ошибка %s: %s", response.status_code, response.text)
-    #             print(f"LLM: ошибка {response.status_code}: {response.text}")
-    #             return None
-
-    #         data = response.json()
-    #         return data.get("message", {}).get("content", "")
-
-    #     except httpx.RequestError as e:
-    #         logger.error("LLM: ошибка запроса: %s", e)
-    #         print(f"LLM: ошибка запроса: {e}")
-    #         return None
 
     async def stream_ask_generator(self, message: list):
         """Отправляет запрос и возвращает токены ответа."""
