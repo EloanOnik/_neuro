@@ -17,6 +17,7 @@ from act.core.tts.config import TTSConfig
 from act.core.tts.registry import create_engine
 from act.services.brain import Brain
 from act.services.tts_player import TTSPlayer
+from act.filter.filter_twitch_chat import FilterTwitchChat
 
 # src/act/main.py -> parents[0]=src/act, parents[1]=src, parents[2]=корень проекта
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -88,21 +89,6 @@ async def _shutdown(
     logger.info("Shutdown завершён")
 
 
-def _parse_message(raw: str) -> tuple[str, str] | None:
-    """Парсит строку вида '[user]: text'. Возвращает None, если формат неверный."""
-    if not raw or ":" not in raw:
-        return None
-
-    user_part, text = raw.split(":", 1)
-    user = user_part.strip("[]").strip()
-    text = text.strip()
-
-    if not user or not text:
-        return None
-
-    return user, text
-
-
 def _build_engine(cfg: TTSConfig):
     engine = create_engine(cfg.engine, **cfg.engine_kwargs(cfg.engine))
     logger.info(f"TTS: выбран движок '{cfg.engine}'")
@@ -117,6 +103,7 @@ async def _async_main() -> None:
     tts: TTSPlayer | None = None
     brain: Brain | None = None
     chat: TwitchChat | None = None
+    chat_filter: FilterTwitchChat | None = None
 
     try:
         cfg = TTSConfig.load(PROJECT_ROOT / "config" / "tts.yaml")
@@ -140,24 +127,33 @@ async def _async_main() -> None:
         chat.start()
         logger.info("TwitchChat подключён, слушаю")
 
+        chat_filter = FilterTwitchChat(banned_words=[])
+
         while True:
             try:
                 raw = await asyncio.to_thread(chat.message_queue.get, True, 2)
             except queue.Empty:
                 continue
 
-            parsed = _parse_message(raw)
-            if parsed is None:
+            msg = chat_filter.filter_one(raw)
+            if msg is None:
                 logger.debug(f"Пропущено невалидное сообщение: {raw!r}")
                 continue
 
-            user, text = parsed
-            logger.debug(f"Сообщение от {user}: {text!r}")
+            logger.debug(f"Сообщение от {msg.user}: {msg.text!r}")
 
             try:
-                brain.enqueue(user=user, text=text, meta={"source": "twitch"})
+                brain.enqueue(user=msg.user, text=msg.text, meta={"source": "twitch"})
             except Exception:
-                logger.exception(f"Не удалось обработать сообщение от {user}")
+                logger.exception(f"Не удалось обработать сообщение от {msg.user}")
+
+            # user, text = msg
+            # logger.debug(f"Сообщение от {user}: {text!r}")
+
+            # try:
+            #     brain.enqueue(user=user, text=text, meta={"source": "twitch"})
+            # except Exception:
+            #     logger.exception(f"Не удалось обработать сообщение от {user}")
 
     finally:
         await _shutdown(tts, brain, chat)

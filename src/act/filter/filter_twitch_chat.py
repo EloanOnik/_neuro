@@ -1,80 +1,88 @@
-import queue
+import re
+from dataclasses import dataclass
 
-from act.adapters.chat.twitch import TwitchChat
 
-#ПЕРЕПИСАТЬ ДЛЯ КАЖДОГО СООБЩЕНИЯ
+@dataclass(slots=True)
+class ChatMessage:
+    user: str
+    text: str
+
 
 class FilterTwitchChat:
-    def __init__(
-        self,
-        chat: TwitchChat,
-        banned_words: list | None = None
-    ):
+    """Фильтрует и парсит сырые сообщения из TwitchChat по одному."""
 
-        self.chat = chat
-        self.banned_words = [w.lower() for w in (banned_words or [])]
+    DEFAULT_IGNORED_USERS = frozenset({
+        "streamelements",
+        "nightbot",
+        "moobot",
+        "fossabot",
+        "wizebot",
+    })
 
-
-    def process_messages(self):
-        """Обработка сообщений из очереди"""
-        valid = []
-
-        while True:
-            try:
-                raw = self.chat.message_queue.get_nowait()
-            except queue.Empty:
-                break
-
-            #Разделение на никнейм и содержимое сообщения
-            if ':' not in raw:
-                continue
-            user_part, text = raw.split(':', 1)
-            user = user_part.strip('[]')
-
-            #Фильтруем
-            if any(w in text.lower() for w in self.banned_words):
-                continue
-            valid.append({
-                'user': user,
-                'text': text.strip()
-            })
-
-        return valid
-
-
-if __name__ == "__main__":
-    chat = TwitchChat()
-    chat.start()
-
-    filter = FilterTwitchChat(
-        chat = chat,
-        banned_words=[]
+    # Регулярка для мусора вроде "xd", "xdx", "хаха", "ахаха", "lul", "kekw", "???", ")))"
+    _NOISE_RE = re.compile(
+        r"^(?:[xхdд]+|[ахха]+|lul|kekw|omegalul|[?!.)(\s]+)$",
+        re.IGNORECASE,
     )
 
-    try:
-        while True:
-            try:
-                raw = chat.message_queue.get(timeout=0.5)
-            except queue.Empty:
-                continue
+    def __init__(
+        self,
+        banned_words: list[str] | None = None,
+        ignored_users: list[str] | None = None,
+        min_length: int = 3,
+        max_length: int = 300,
+    ):
+        self.banned_words = [w.lower().strip() for w in (banned_words or []) if w.strip()]
+        self.ignored_users = (
+            {u.lower().strip() for u in ignored_users}
+            if ignored_users is not None
+            else set(self.DEFAULT_IGNORED_USERS)
+        )
+        self.min_length = min_length
+        self.max_length = max_length
 
-            print(raw)
+    def filter_one(self, raw: str) -> ChatMessage | None:
+        """
+        Принимает сырую строку вида '[user]: text'.
+        Возвращает ChatMessage, если сообщение прошло фильтрацию, иначе None.
+        """
+        if not raw or ":" not in raw:
+            return None
 
-    except KeyboardInterrupt:
-         print("\nЗавершение работы...")
-         chat.stop()  # Корректно останавливаем поток
-         print("Чат остановлен")
+        user_part, text_part = raw.split(":", 1)
+        user = user_part.strip("[]").strip()
+        text = text_part.strip()
 
+        if not user or not text:
+            return None
 
-"""Главная причина «нет вывода» — KeyboardInterrupt и занятость GIL
+        # 1. Игнорируем чат-ботов
+        if user.lower() in self.ignored_users:
+            return None
 
-Скорее всего, у вас вывод есть, но он не успевает появляться из-за busy-loop:
-python
+        # 2. Игнорируем чат-команды (!казино, !выпороть и т.д.)
+        if text.startswith("!"):
+            return None
 
-while True:
-    messages = filter.process_messages()  # мгновенно возвращает []
-    for msg in messages: ...              # ничего не делает
+        # 3. Игнорируем ссылки
+        lower_text = text.lower()
+        if "http://" in lower_text or "https://" in lower_text or "www." in lower_text:
+            return None
 
-Цикл крутится на 100% CPU в главном потоке, захватывая GIL. 
-Поток TwitchChat не успевает нормально обрабатывать данные из сокета, потому что главный поток постоянно его вытесняет. 
-Внешне это выглядит как «сообщения не приходят»."""
+        # 4. Проверка длины (слишком короткие не несут смысла, слишком длинные — спам-пасты)
+        if len(text) < self.min_length or len(text) > self.max_length:
+            return None
+
+        # 5. Должна быть хотя бы одна буква или цифра (отсекает спам скобками/знаками)
+        if not any(ch.isalnum() for ch in text):
+            return None
+
+        # 6. Отсекаем короткий смех/реакции без текста ("xd", "xdx", "хаха")
+        if self._NOISE_RE.match(text):
+            return None
+
+        # 7. Фильтр запрещённых слов (банвордов Twitch)
+        if any(word in lower_text for word in self.banned_words):
+            return None
+
+        return ChatMessage(user=user, text=text)
