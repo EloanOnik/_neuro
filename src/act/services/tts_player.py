@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 from contextlib import aclosing
 from loguru import logger
 
@@ -6,13 +7,17 @@ from act.core.audio.output import AudioOutput
 from act.core.tts.base import TTSEngine
 
 
-# Еще раз перепроверить на баги
-
-
 class TTSPlayer:
-    def __init__(self, engine: TTSEngine, output: AudioOutput, maxsize: int = 10):
+    def __init__(
+        self,
+        engine: TTSEngine,
+        output: AudioOutput,
+        maxsize: int = 10,
+        sentence_pause: float = 0.3,
+    ):
         self.engine = engine
         self.output = output
+        self.sentence_pause = sentence_pause
         self.queue: asyncio.Queue[str] | None = None
         self._task: asyncio.Task | None = None
         self._started = False
@@ -23,10 +28,9 @@ class TTSPlayer:
         async with self._lock:
             if self._started:
                 return
-            # Сначала проверяем устройство, потом грузим тяжелую модель
             if not self.output.find_vbcable_devices():
                 raise RuntimeError("TTSPlayer: VB-Cable не найден")
-            
+
             await self.engine.load()
             try:
                 self.queue = asyncio.Queue(maxsize=self._maxsize)
@@ -56,37 +60,47 @@ class TTSPlayer:
             logger.info("TTSPlayer: остановлен")
 
     async def speak(self, text: str) -> None:
-        if self.queue is None or not self._started:
+        q = self.queue
+        if q is None or not self._started:
             raise RuntimeError("TTSPlayer: не запущен")
 
         if not text or not any(ch.isalnum() for ch in text):
             return
 
-        await self.queue.put(text.strip())
+        await q.put(text.strip())
 
     async def wait_until_done(self) -> None:
         """Дождаться озвучивания всех фраз в очереди."""
-        if self.queue is not None:
-            await self.queue.join()
+        q = self.queue
+        if q is not None and self._started:
+            await q.join()
 
     async def _process_queue(self) -> None:
-        assert self.queue is not None
+        q = self.queue
+        assert q is not None
         while True:
-            text = await self.queue.get()
+            text = await q.get()
             try:
-                # Если synthesize возвращает AsyncGenerator, aclosing гарантирует его закрытие при отмене
                 stream = self.engine.synthesize(text)
+                if inspect.isawaitable(stream):
+                    stream = await stream
+
                 if hasattr(stream, "__aiter__"):
                     async with aclosing(stream) as safe_stream:
                         await self.output.play(safe_stream)
                 else:
                     await self.output.play(stream)
+
+                # Небольшая естественная пауза между фразами, если в очереди есть ещё текст
+                if self.sentence_pause > 0 and not q.empty():
+                    await asyncio.sleep(self.sentence_pause)
+
             except asyncio.CancelledError:
                 break
             except Exception as e:
                 logger.exception(f"[TTS {self.engine.name}] Ошибка на тексте {text!r}: {e}")
             finally:
-                self.queue.task_done()
+                q.task_done()
 
     def _clear_queue(self) -> None:
         if self.queue is None:

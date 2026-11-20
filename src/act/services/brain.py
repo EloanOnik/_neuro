@@ -129,6 +129,9 @@ class Brain:
         self.chat_context.add_user_message(item["text"]) # добавляет наш запрос в context
         self.chat_context.add_assistant_message(answer) # добавляет ответ LLM в контекст
 
+        await self.tts_player.wait_until_done()
+        await asyncio.sleep(2.0) # что бы tts не захлебывался 
+
 
 
     def _build_prompt(self, item):# создает промпт, контекст + то что пришло из чата
