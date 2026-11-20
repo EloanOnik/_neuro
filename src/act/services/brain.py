@@ -18,7 +18,7 @@ class Brain:
     def __init__(
         self,
         tts_player: TTSPlayer,
-        model: str = "qwen2.5:3b",
+        model: str = "gemma3:12b", # qwen2.5:3b
         path_system_prompt: str | Path = PROJECT_ROOT / "config" / "system.yaml",
     ):
         self.model = model

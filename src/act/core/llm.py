@@ -1,6 +1,7 @@
 # core/llm.py
 import asyncio
 import json
+import os
 
 import httpx
 from loguru import logger
@@ -14,13 +15,16 @@ class LLMClient:
 
     def __init__(
         self,
-        model: str = "qwen2.5:3b",
-        url: str = "http://localhost:11434/api/chat",
-        timeout: float = 60.0,
-        keep_alive: str = "10m",
+        model: str = "gemma3:12b", # qwen2.5:3b
+        url: str | None = None, # http://localhost:11434/api/chat
+        timeout: float = 180.0,
+        keep_alive: str = "30m",
     ):
         self.model = model
-        self.url = url
+        # Берём из аргумента, иначе из env, иначе localhost
+        base = (url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")).rstrip("/")
+        self.base_url = base
+        self.url = f"{base}/api/chat"
         self.timeout = timeout
         self.keep_alive = keep_alive
         self._client: httpx.AsyncClient | None = None
@@ -84,7 +88,8 @@ class LLMClient:
     async def stop_stream_client(self):
         logger.debug("LLM.stop_stream_client: выгрузка модели {}", self.model)
         client = await self._get_stream_client() #Возможно гонка       
-        url = self.url.replace("/api/chat", "/api/generate")
+        #url = self.url.replace("/api/chat", "/api/generate")
+        url = f"{self.base_url}/api/generate"
         try:
             response = await client.post(
                 url,

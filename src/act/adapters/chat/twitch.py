@@ -10,7 +10,7 @@ class TwitchChat:
     # Настройки подключения
     HOST = "irc.chat.twitch.tv"
     PORT = 6697
-    CHAN = "#yui2d"  # Имя канала строчными буквами с решеткой (например, #xqc)
+    CHAN = "#mokimioki"  # Имя канала строчными буквами с решеткой (например, #xqc)
     NICK = "justinfan84732"   # Анонимный ник
     PASSWORD = "SCHMOOPIIE"       # Заглушка пароля
 

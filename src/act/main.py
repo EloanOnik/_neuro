@@ -5,6 +5,10 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+
+from dotenv import load_dotenv
+
+
 from loguru import logger
 
 from act.adapters.chat.twitch import TwitchChat
@@ -106,6 +110,7 @@ def _build_engine(cfg: TTSConfig):
 
 
 async def _async_main() -> None:
+    load_dotenv()
     setup_loguru()
     logger.info("Запуск main")
 
